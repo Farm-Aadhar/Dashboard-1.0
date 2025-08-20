@@ -11,6 +11,10 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import AIAnalysis from "./pages/AIAnalysis";
+import Tasks from "./pages/Tasks";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -71,10 +75,10 @@ const App = () => (
                   </ProtectedRoute>
                 }>
                   <Route index element={<Index />} />
-                  <Route path="ai" element={<div className="p-6">AI Analysis - Coming Soon</div>} />
-                  <Route path="tasks" element={<div className="p-6">Tasks & Planning - Coming Soon</div>} />
-                  <Route path="reports" element={<div className="p-6">Reports - Coming Soon</div>} />
-                  <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
+                  <Route path="ai" element={<AIAnalysis />} />
+                  <Route path="tasks" element={<Tasks />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route path="settings" element={<Settings />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
