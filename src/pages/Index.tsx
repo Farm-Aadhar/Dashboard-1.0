@@ -4,13 +4,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { SensorCard } from '@/components/dashboard/SensorCard';
 import { SensorChart } from '@/components/dashboard/SensorChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Thermometer, 
-  Droplets, 
-  TreePine, 
+import {
+  Thermometer,
+  Droplets,
+  TreePine,
   Wind,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  FlaskConical,
+  CloudDrizzle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,6 +23,8 @@ interface SensorReading {
   humidity: number;
   soil_moisture: number;
   air_quality_mq135: number;
+  alcohol_mq3: number;
+  smoke_mq2: number;
   timestamp: string;
 }
 
@@ -29,6 +33,7 @@ const Index = () => {
   const [latestData, setLatestData] = useState<SensorReading | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedGraph, setSelectedGraph] = useState('ppm');
 
   useEffect(() => {
     fetchSensorData();
@@ -92,14 +97,19 @@ const Index = () => {
         .order('timestamp', { ascending: false })
         .limit(20);
 
-      if (readings) {
+      if (readings && readings.length > 0) {
         const chartData = readings.reverse().map(reading => ({
           time: new Date(reading.timestamp).toLocaleTimeString(),
-          temperature: reading.temperature,
-          humidity: reading.humidity,
-          soilMoisture: reading.soil_moisture || 0
+          temperature: reading.temperature ?? 0,
+          humidity: reading.humidity ?? 0,
+          soilMoisture: reading.soil_moisture ?? 0,
+          airQuality: reading.air_quality_mq135 ?? 0,
+          alcohol: reading.alcohol_mq3 ?? 0,
+          smoke: reading.smoke_mq2 ?? 0
         }));
         setChartData(chartData);
+      } else {
+        setChartData([]);
       }
     } catch (error) {
       console.error('Error fetching sensor data:', error);
@@ -150,10 +160,10 @@ const Index = () => {
 
   return (
     <div className="space-y-6">
-      {/* Sensor Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Sensor Status Cards - Soil Node */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
         <SensorCard
-          title={t('temperature')}
+          title="Soil Level Temp"
           value={latestData?.temperature?.toFixed(1) || '0.0'}
           unit="°C"
           icon={<Thermometer className="h-5 w-5" />}
@@ -161,15 +171,7 @@ const Index = () => {
           trend={{ value: 5, type: 'up' }}
         />
         <SensorCard
-          title={t('humidity')}
-          value={latestData?.humidity?.toFixed(1) || '0.0'}
-          unit="%"
-          icon={<Droplets className="h-5 w-5" />}
-          status={getStatus(latestData?.humidity || 0, 'humidity')}
-          trend={{ value: 2, type: 'down' }}
-        />
-        <SensorCard
-          title={t('soilMoisture')}
+          title="Soil Moisture"
           value={latestData?.soil_moisture?.toFixed(1) || '0.0'}
           unit="%"
           icon={<TreePine className="h-5 w-5" />}
@@ -177,7 +179,50 @@ const Index = () => {
           trend={{ value: 8, type: 'up' }}
         />
         <SensorCard
-          title={t('airQuality')}
+          title="Soil Level Humidity"
+          value={latestData?.humidity?.toFixed(1) || '0.0'}
+          unit="%"
+          icon={<Droplets className="h-5 w-5" />}
+          status={getStatus(latestData?.humidity || 0, 'humidity')}
+          trend={{ value: 2, type: 'down' }}
+        />
+      </div>
+      {/* Sensor Status Cards - Air Node */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-4">
+        <SensorCard
+          title="Air Temp"
+          value={latestData?.temperature?.toFixed(1) || '0.0'}
+          unit="°C"
+          icon={<Thermometer className="h-5 w-5" />}
+          status={getStatus(latestData?.temperature || 0, 'temperature')}
+          trend={{ value: 4, type: 'up' }}
+        />
+        <SensorCard
+          title="Air Humidity"
+          value={latestData?.humidity?.toFixed(1) || '0.0'}
+          unit="%"
+          icon={<CloudDrizzle className="h-5 w-5" />}
+          status={getStatus(latestData?.humidity || 0, 'humidity')}
+          trend={{ value: 3, type: 'down' }}
+        />
+        <SensorCard
+          title="Smoke"
+          value={latestData?.smoke_mq2 || '0'}
+          unit="ppm"
+          icon={<AlertTriangle className="h-5 w-5" />}
+          status={getStatus(latestData?.smoke_mq2 || 0, 'air')}
+          trend={{ value: 1, type: 'up' }}
+        />
+        <SensorCard
+          title="Alcohol"
+          value={latestData?.alcohol_mq3 || '0'}
+          unit="ppm"
+          icon={<FlaskConical className="h-5 w-5" />}
+          status={getStatus(latestData?.alcohol_mq3 || 0, 'air')}
+          trend={{ value: 2, type: 'down' }}
+        />
+        <SensorCard
+          title="Air Quality"
           value={latestData?.air_quality_mq135 || '0'}
           unit="ppm"
           icon={<Wind className="h-5 w-5" />}
@@ -185,7 +230,6 @@ const Index = () => {
           trend={{ value: 3, type: 'down' }}
         />
       </div>
-
       {/* Trend Analysis Widget */}
       <Card className="sensor-card">
         <CardHeader>
@@ -208,13 +252,57 @@ const Index = () => {
         </CardContent>
       </Card>
 
-      {/* Real-time Charts */}
-      <SensorChart 
-        data={chartData}
-        title="Real-time Sensor Data"
-      />
+      {/* Graph Selector Tabs */}
+      <div className="my-8">
+        <div className="flex border-b border-border mb-6">
+          {[
+            { key: 'soil', label: 'Soil Values' },
+            { key: 'ppm', label: 'Air Values' },
+            { key: 'compare', label: 'Soil vs Air' }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              className={`px-6 py-2 font-medium focus:outline-none transition-colors duration-150
+                ${selectedGraph === tab.key
+                  ? 'border-b-2 border-primary text-primary bg-card'
+                  : 'text-muted-foreground hover:text-primary'}
+              `}
+              style={{
+                backgroundColor: selectedGraph === tab.key ? 'hsl(var(--card))' : 'transparent',
+                borderColor: selectedGraph === tab.key ? 'hsl(var(--primary))' : 'transparent',
+                color: selectedGraph === tab.key ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'
+              }}
+              onClick={() => setSelectedGraph(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {selectedGraph === 'ppm' && (
+          <SensorChart
+            data={chartData}
+            title="PPM Values (Air Quality, Alcohol, Smoke)"
+            lines={["airQuality", "alcohol", "smoke"]}
+          />
+        )}
+        {selectedGraph === 'soil' && (
+          <SensorChart
+            data={chartData}
+            title="Soil Values (Moisture, Temp, Humidity)"
+            lines={["soilMoisture", "temperature", "humidity"]}
+          />
+        )}
+        {selectedGraph === 'compare' && (
+          <SensorChart
+            data={chartData}
+            title="Soil vs Air Humidity & Temp"
+            lines={["temperature", "humidity"]}
+          />
+        )}
+      </div>
     </div>
   );
-};
+}
 
 export default Index;

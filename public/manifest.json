@@ -1,0 +1,21 @@
+{
+  "name": "Farm Insight Garden",
+  "short_name": "FarmInsight",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "description": "Smart farm dashboard for sensor data and analysis.",
+  "icons": [
+    {
+      "src": "https://lootoo.in/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://lootoo.in/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
