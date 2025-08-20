@@ -14,7 +14,204 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_suggestions: {
+        Row: {
+          category: string | null
+          id: string
+          image_url: string | null
+          suggestion_text: string
+          timestamp: string | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          id?: string
+          image_url?: string | null
+          suggestion_text: string
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          id?: string
+          image_url?: string | null
+          suggestion_text?: string
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_suggestions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      alerts: {
+        Row: {
+          id: string
+          is_read: boolean | null
+          message: string
+          severity: string | null
+          timestamp: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          is_read?: boolean | null
+          message: string
+          severity?: string | null
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          severity?: string | null
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      farm_tasks: {
+        Row: {
+          created_at: string | null
+          due_date: string | null
+          id: string
+          is_completed: boolean | null
+          priority: string | null
+          task_description: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean | null
+          priority?: string | null
+          task_description: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean | null
+          priority?: string | null
+          task_description?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "farm_tasks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      node_metadata: {
+        Row: {
+          last_active_timestamp: string | null
+          location: string | null
+          node_id: string
+          node_name: string
+        }
+        Insert: {
+          last_active_timestamp?: string | null
+          location?: string | null
+          node_id: string
+          node_name: string
+        }
+        Update: {
+          last_active_timestamp?: string | null
+          location?: string | null
+          node_id?: string
+          node_name?: string
+        }
+        Relationships: []
+      }
+      sensor_readings: {
+        Row: {
+          air_quality_mq135: number | null
+          alcohol_mq3: number | null
+          humidity: number | null
+          id: string
+          node_id: string
+          smoke_mq2: number | null
+          soil_moisture: number | null
+          temperature: number | null
+          timestamp: string | null
+        }
+        Insert: {
+          air_quality_mq135?: number | null
+          alcohol_mq3?: number | null
+          humidity?: number | null
+          id?: string
+          node_id: string
+          smoke_mq2?: number | null
+          soil_moisture?: number | null
+          temperature?: number | null
+          timestamp?: string | null
+        }
+        Update: {
+          air_quality_mq135?: number | null
+          alcohol_mq3?: number | null
+          humidity?: number | null
+          id?: string
+          node_id?: string
+          smoke_mq2?: number | null
+          soil_moisture?: number | null
+          temperature?: number | null
+          timestamp?: string | null
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          name: string | null
+          preferred_language: string | null
+          role: string | null
+          theme: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          name?: string | null
+          preferred_language?: string | null
+          role?: string | null
+          theme?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          name?: string | null
+          preferred_language?: string | null
+          role?: string | null
+          theme?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
