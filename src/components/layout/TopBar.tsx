@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
+import { SimulationController } from "@/components/dashboard/SimulationController";
 import { 
   Select,
   SelectContent,
@@ -75,6 +76,9 @@ export function TopBar() {
               <SelectItem value="hi">हिंदी</SelectItem>
             </SelectContent>
           </Select>
+
+            {/* Simulation Buttons */}
+            <SimulationController />
 
           {/* Theme Toggle */}
           <Button

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from 'sonner';
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,18 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Download, FileBarChart, TrendingUp, Activity, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function Reports() {
+  // Clear all sensor records
+  const clearAllRecords = async () => {
+    if (!window.confirm('Are you sure you want to delete all sensor records? This action cannot be undone.')) return;
+  const { error } = await supabase.from('sensor_readings').delete().gt('timestamp', '1900-01-01');
+    if (error) {
+      toast.error('Failed to delete records');
+    } else {
+      toast.success('All sensor records deleted');
+      // Refetch data
+      window.location.reload();
+    }
+  };
   const { user } = useAuth();
   const { t } = useLanguage();
   const [selectedPeriod, setSelectedPeriod] = useState("7");
@@ -70,10 +83,14 @@ export default function Reports() {
   // Process sensor data for charts
   const processedSensorData = sensorData.map(reading => ({
     timestamp: new Date(reading.timestamp).toLocaleDateString(),
-    temperature: reading.temperature,
-    humidity: reading.humidity,
-    soilMoisture: reading.soil_moisture,
-    airQuality: reading.air_quality_mq135
+    air_temperature: reading.air_temperature ?? reading.temperature ?? null,
+    air_humidity: reading.air_humidity ?? reading.humidity ?? null,
+    soil_moisture: reading.soil_moisture ?? null,
+    air_air_quality_mq135: reading.air_air_quality_mq135 ?? reading.air_quality_mq135 ?? null,
+    air_alcohol_mq3: reading.air_alcohol_mq3 ?? reading.alcohol_mq3 ?? null,
+    air_smoke_mq2: reading.air_smoke_mq2 ?? reading.smoke_mq2 ?? null,
+    soil_temperature: reading.soil_temperature ?? reading.temperature ?? null,
+    soil_humidity: reading.soil_humidity ?? reading.humidity ?? null,
   }));
 
   // Task completion data
@@ -129,10 +146,15 @@ export default function Reports() {
           <FileBarChart className="h-6 w-6" />
           <h1 className="text-2xl font-bold">{t('Reports & Analytics')}</h1>
         </div>
-        <Button onClick={exportData} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          {t('Export Report')}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={exportData} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            {t('Export Report')}
+          </Button>
+          <Button onClick={clearAllRecords} variant="destructive">
+            Clear All Records
+          </Button>
+        </div>
       </div>
 
       {/* Report Controls */}
@@ -161,10 +183,14 @@ export default function Reports() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="temperature">{t('Temperature')}</SelectItem>
-                <SelectItem value="humidity">{t('Humidity')}</SelectItem>
-                <SelectItem value="soilMoisture">{t('Soil Moisture')}</SelectItem>
-                <SelectItem value="airQuality">{t('Air Quality')}</SelectItem>
+                <SelectItem value="air_temperature">{t('Air Temperature')}</SelectItem>
+                <SelectItem value="air_humidity">{t('Air Humidity')}</SelectItem>
+                <SelectItem value="soil_moisture">{t('Soil Moisture')}</SelectItem>
+                <SelectItem value="air_air_quality_mq135">{t('Air Quality')}</SelectItem>
+                <SelectItem value="air_alcohol_mq3">{t('Alcohol')}</SelectItem>
+                <SelectItem value="air_smoke_mq2">{t('Smoke')}</SelectItem>
+                <SelectItem value="soil_temperature">{t('Soil Temperature')}</SelectItem>
+                <SelectItem value="soil_humidity">{t('Soil Humidity')}</SelectItem>
               </SelectContent>
             </Select>
           </div>

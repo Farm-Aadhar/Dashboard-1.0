@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { SensorCard } from '@/components/dashboard/SensorCard';
 import { SensorChart } from '@/components/dashboard/SensorChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PastRecordsTable } from '@/components/dashboard/PastRecordsTable';
 import {
   Thermometer,
   Droplets,
@@ -18,14 +19,21 @@ import { toast } from 'sonner';
 
 interface SensorReading {
   id: string;
-  node_id: string;
-  temperature: number;
-  humidity: number;
-  soil_moisture: number;
-  air_quality_mq135: number;
-  alcohol_mq3: number;
-  smoke_mq2: number;
   timestamp: string;
+  air_temperature?: number;
+  air_humidity?: number;
+  air_air_quality_mq135?: number;
+  air_alcohol_mq3?: number;
+  air_smoke_mq2?: number;
+  soil_temperature?: number;
+  soil_humidity?: number;
+  soil_moisture?: number;
+  // fallback for old fields
+  temperature?: number;
+  humidity?: number;
+  air_quality_mq135?: number;
+  alcohol_mq3?: number;
+  smoke_mq2?: number;
 }
 
 const Index = () => {
@@ -34,47 +42,6 @@ const Index = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGraph, setSelectedGraph] = useState('ppm');
-
-  useEffect(() => {
-    fetchSensorData();
-    
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('sensor-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'sensor_readings'
-        },
-        (payload) => {
-          const newReading = payload.new as SensorReading;
-          setLatestData(newReading);
-          
-          // Add to chart data
-          setChartData(prev => {
-            const newData = [...prev];
-            newData.push({
-              time: new Date(newReading.timestamp).toLocaleTimeString(),
-              temperature: newReading.temperature,
-              humidity: newReading.humidity,
-              soilMoisture: newReading.soil_moisture || 0
-            });
-            
-            // Keep only last 20 data points
-            return newData.slice(-20);
-          });
-          
-          toast.success('New sensor data received!');
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   const fetchSensorData = async () => {
     try {
@@ -100,12 +67,14 @@ const Index = () => {
       if (readings && readings.length > 0) {
         const chartData = readings.reverse().map(reading => ({
           time: new Date(reading.timestamp).toLocaleTimeString(),
-          temperature: reading.temperature ?? 0,
-          humidity: reading.humidity ?? 0,
-          soilMoisture: reading.soil_moisture ?? 0,
-          airQuality: reading.air_quality_mq135 ?? 0,
-          alcohol: reading.alcohol_mq3 ?? 0,
-          smoke: reading.smoke_mq2 ?? 0
+          temperature: ((reading as any).soil_temperature ?? reading.temperature) ?? 0,
+          humidity: ((reading as any).soil_humidity ?? reading.humidity) ?? 0,
+          soilMoisture: reading.soil_moisture ?? null,
+          airTemperature: ((reading as any).air_temperature ?? reading.temperature) ?? 0,
+          airHumidity: ((reading as any).air_humidity ?? reading.humidity) ?? 0,
+          airQuality: ((reading as any).air_air_quality_mq135 ?? reading.air_quality_mq135) ?? 0,
+          alcohol: ((reading as any).air_alcohol_mq3 ?? reading.alcohol_mq3) ?? 0,
+          smoke: ((reading as any).air_smoke_mq2 ?? reading.smoke_mq2) ?? 0
         }));
         setChartData(chartData);
       } else {
@@ -118,6 +87,45 @@ const Index = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSensorData();
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('sensor-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'sensor_readings'
+        },
+        (payload) => {
+          const newReading = payload.new as SensorReading;
+          setLatestData(newReading);
+          setChartData(prev => {
+            const newData = [...prev];
+            newData.push({
+              time: new Date(newReading.timestamp).toLocaleTimeString(),
+              temperature: newReading.soil_temperature ?? newReading.temperature ?? 0,
+              humidity: newReading.soil_humidity ?? newReading.humidity ?? 0,
+              soilMoisture: newReading.soil_moisture ?? null,
+              airTemperature: newReading.air_temperature ?? null,
+              airHumidity: newReading.air_humidity ?? null,
+              airQuality: newReading.air_air_quality_mq135 ?? newReading.air_quality_mq135 ?? 0,
+              alcohol: newReading.air_alcohol_mq3 ?? newReading.alcohol_mq3 ?? 0,
+              smoke: newReading.air_smoke_mq2 ?? newReading.smoke_mq2 ?? 0
+            });
+            return newData.slice(-20);
+          });
+          toast.success('New sensor data received!');
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const getStatus = (value: number, type: 'temperature' | 'humidity' | 'soil' | 'air') => {
     switch (type) {
@@ -141,7 +149,6 @@ const Index = () => {
         return 'healthy';
     }
   };
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -160,75 +167,88 @@ const Index = () => {
 
   return (
     <div className="space-y-6">
-      {/* Sensor Status Cards - Soil Node */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
-        <SensorCard
-          title="Soil Level Temp"
-          value={latestData?.temperature?.toFixed(1) || '0.0'}
-          unit="°C"
-          icon={<Thermometer className="h-5 w-5" />}
-          status={getStatus(latestData?.temperature || 0, 'temperature')}
-          trend={{ value: 5, type: 'up' }}
-        />
-        <SensorCard
-          title="Soil Moisture"
-          value={latestData?.soil_moisture?.toFixed(1) || '0.0'}
-          unit="%"
-          icon={<TreePine className="h-5 w-5" />}
-          status={getStatus(latestData?.soil_moisture || 0, 'soil')}
-          trend={{ value: 8, type: 'up' }}
-        />
-        <SensorCard
-          title="Soil Level Humidity"
-          value={latestData?.humidity?.toFixed(1) || '0.0'}
-          unit="%"
-          icon={<Droplets className="h-5 w-5" />}
-          status={getStatus(latestData?.humidity || 0, 'humidity')}
-          trend={{ value: 2, type: 'down' }}
-        />
-      </div>
-      {/* Sensor Status Cards - Air Node */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-4">
-        <SensorCard
-          title="Air Temp"
-          value={latestData?.temperature?.toFixed(1) || '0.0'}
-          unit="°C"
-          icon={<Thermometer className="h-5 w-5" />}
-          status={getStatus(latestData?.temperature || 0, 'temperature')}
-          trend={{ value: 4, type: 'up' }}
-        />
-        <SensorCard
-          title="Air Humidity"
-          value={latestData?.humidity?.toFixed(1) || '0.0'}
-          unit="%"
-          icon={<CloudDrizzle className="h-5 w-5" />}
-          status={getStatus(latestData?.humidity || 0, 'humidity')}
-          trend={{ value: 3, type: 'down' }}
-        />
-        <SensorCard
-          title="Smoke"
-          value={latestData?.smoke_mq2 || '0'}
-          unit="ppm"
-          icon={<AlertTriangle className="h-5 w-5" />}
-          status={getStatus(latestData?.smoke_mq2 || 0, 'air')}
-          trend={{ value: 1, type: 'up' }}
-        />
-        <SensorCard
-          title="Alcohol"
-          value={latestData?.alcohol_mq3 || '0'}
-          unit="ppm"
-          icon={<FlaskConical className="h-5 w-5" />}
-          status={getStatus(latestData?.alcohol_mq3 || 0, 'air')}
-          trend={{ value: 2, type: 'down' }}
-        />
-        <SensorCard
-          title="Air Quality"
-          value={latestData?.air_quality_mq135 || '0'}
-          unit="ppm"
-          icon={<Wind className="h-5 w-5" />}
-          status={getStatus(latestData?.air_quality_mq135 || 0, 'air')}
-          trend={{ value: 3, type: 'down' }}
-        />
+      {/* Responsive KPI Cards */}
+      <div className="flex flex-wrap gap-4 mb-4 justify-center items-stretch">
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Soil Level Temp"
+            value={((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0).toFixed(1)}
+            unit="°C"
+            icon={<Thermometer className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0, 'temperature')}
+            trend={{ value: 5, type: 'up' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Soil Moisture"
+            value={latestData?.soil_moisture?.toFixed(1) || '0.0'}
+            unit="%"
+            icon={<TreePine className="h-5 w-5" />}
+            status={getStatus(latestData?.soil_moisture ?? 0, 'soil')}
+            trend={{ value: 8, type: 'up' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Soil Level Humidity"
+            value={((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0).toFixed(1)}
+            unit="%"
+            icon={<Droplets className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0, 'humidity')}
+            trend={{ value: 2, type: 'down' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Air Temp"
+            value={((latestData as any)?.air_temperature ?? 0).toFixed(1)}
+            unit="°C"
+            icon={<Thermometer className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.air_temperature ?? 0, 'temperature')}
+            trend={{ value: 4, type: 'up' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Air Humidity"
+            value={((latestData as any)?.air_humidity ?? 0).toFixed(1)}
+            unit="%"
+            icon={<CloudDrizzle className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.air_humidity ?? 0, 'humidity')}
+            trend={{ value: 3, type: 'down' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Smoke"
+            value={((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0)}
+            unit="ppm"
+            icon={<AlertTriangle className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'air')}
+            trend={{ value: 1, type: 'up' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Alcohol"
+            value={((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0)}
+            unit="ppm"
+            icon={<FlaskConical className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'air')}
+            trend={{ value: 2, type: 'down' }}
+          />
+        </div>
+        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
+          <SensorCard
+            title="Air Quality"
+            value={((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0)}
+            unit="ppm"
+            icon={<Wind className="h-5 w-5" />}
+            status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'air')}
+            trend={{ value: 3, type: 'down' }}
+          />
+        </div>
       </div>
       {/* Trend Analysis Widget */}
       <Card className="sensor-card">
@@ -297,10 +317,12 @@ const Index = () => {
           <SensorChart
             data={chartData}
             title="Soil vs Air Humidity & Temp"
-            lines={["temperature", "humidity"]}
+            lines={["airTemperature", "airHumidity", "temperature", "humidity"]}
           />
         )}
       </div>
+      {/* Past Records Table */}
+      <PastRecordsTable />
     </div>
   );
 }
