@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +18,7 @@ import { Settings } from "lucide-react";
 // =========================
 const SUPABASE_URL = "https://ghkcfgcyzhtwufizxuyo.supabase.co";
 const SUPABASE_SERVICE_ROLE_KEY =
-  "YOUR_SERVICE_ROLE_KEY";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdoa2NmZ2N5emh0d3VmaXp4dXlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTY4NDYzMiwiZXhwIjoyMDcxMjYwNjMyfQ.romU2eJK__vtjLXOz6Au79vcFJo3Ia87xnARodpr3Ho";
 
 const API_ENDPOINT = `${SUPABASE_URL}/rest/v1/sensor_readings`;
 const API_HEADERS = {
@@ -110,6 +111,7 @@ export function SimulationController() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [running, setRunning] = useState(false);
   const timeRef = useRef(0);
+  const { toast } = useToast();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tempSensitivity, setTempSensitivity] = useState<Sensitivity>(sensitivity);
@@ -139,12 +141,23 @@ export function SimulationController() {
     const mockData = generateMockDataWithTrend(timeInSeconds, spikeChance, spikeIntensity);
     try {
       await axios.post(API_ENDPOINT, mockData, { headers: API_HEADERS });
-    } catch {}
+    } catch (err) {
+      toast({
+        title: "Simulation Error",
+        description: "Failed to push sensor data.",
+        variant: "destructive"
+      });
+    }
   };
 
   const toggleSimulation = () => {
     if (!running) {
       setRunning(true);
+      toast({
+        title: "Simulation Started",
+        description: "Sensor data simulation is now running.",
+        variant: "default"
+      });
       intervalRef.current = setInterval(async () => {
         await sendData(timeRef.current);
         timeRef.current++;
@@ -155,6 +168,11 @@ export function SimulationController() {
         intervalRef.current = null;
       }
       setRunning(false);
+      toast({
+        title: "Simulation Stopped",
+        description: "Sensor data simulation has stopped.",
+        variant: "default"
+      });
     }
   };
 

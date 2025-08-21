@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { SensorCard } from '@/components/dashboard/SensorCard';
 import { SensorChart } from '@/components/dashboard/SensorChart';
@@ -16,7 +17,7 @@ import {
   CloudDrizzle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import TrendAnalysis from '@/components/dashboard/trendAnalysis';
+import TrendAnalysis from '@/components/dashboard/TrendAnalysis';
 
 interface SensorReading {
   id: string;
@@ -39,6 +40,7 @@ interface SensorReading {
 
 const Index = () => {
   const { t } = useLanguage();
+  const { user, loading: authLoading } = useAuth();
   const [latestData, setLatestData] = useState<SensorReading | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,19 +49,18 @@ const Index = () => {
   const fetchSensorData = async () => {
     try {
       // Fetch latest reading
-      const { data: latest } = await supabase
+      const { data: latest, error: latestError } = await supabase
         .from('sensor_readings')
         .select('*')
         .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (latest) {
-        setLatestData(latest);
+      if (latest && latest.length > 0) {
+        setLatestData(latest[0]);
       }
 
       // Fetch last 20 readings for chart
-      const { data: readings } = await supabase
+      const { data: readings, error: readingsError } = await supabase
         .from('sensor_readings')
         .select('*')
         .order('timestamp', { ascending: false })
@@ -70,7 +71,7 @@ const Index = () => {
           time: new Date(reading.timestamp).toLocaleTimeString(),
           temperature: ((reading as any).soil_temperature ?? reading.temperature) ?? 0,
           humidity: ((reading as any).soil_humidity ?? reading.humidity) ?? 0,
-          soilMoisture: reading.soil_moisture ?? null,
+          soilMoisture: reading.soil_moisture ?? 0,
           airTemperature: ((reading as any).air_temperature ?? reading.temperature) ?? 0,
           airHumidity: ((reading as any).air_humidity ?? reading.humidity) ?? 0,
           airQuality: ((reading as any).air_air_quality_mq135 ?? reading.air_quality_mq135) ?? 0,
@@ -81,6 +82,13 @@ const Index = () => {
       } else {
         setChartData([]);
       }
+      
+      if (latestError) {
+        console.error('Error fetching latest data:', latestError);
+      }
+      if (readingsError) {
+        console.error('Error fetching readings:', readingsError);
+      }
     } catch (error) {
       console.error('Error fetching sensor data:', error);
       toast.error('Failed to fetch sensor data');
@@ -90,43 +98,76 @@ const Index = () => {
   };
 
   useEffect(() => {
-    fetchSensorData();
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('sensor-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'sensor_readings'
-        },
-        (payload) => {
-          const newReading = payload.new as SensorReading;
-          setLatestData(newReading);
-          setChartData(prev => {
-            const newData = [...prev];
-            newData.push({
-              time: new Date(newReading.timestamp).toLocaleTimeString(),
-              temperature: newReading.soil_temperature ?? newReading.temperature ?? 0,
-              humidity: newReading.soil_humidity ?? newReading.humidity ?? 0,
-              soilMoisture: newReading.soil_moisture ?? null,
-              airTemperature: newReading.air_temperature ?? null,
-              airHumidity: newReading.air_humidity ?? null,
-              airQuality: newReading.air_air_quality_mq135 ?? newReading.air_quality_mq135 ?? 0,
-              alcohol: newReading.air_alcohol_mq3 ?? newReading.alcohol_mq3 ?? 0,
-              smoke: newReading.air_smoke_mq2 ?? newReading.smoke_mq2 ?? 0
+    // Don't fetch data if authentication is still loading or user is not authenticated
+    if (authLoading || !user) {
+      return;
+    }
+
+    let mounted = true;
+    
+    const setupRealtimeAndFetch = async () => {
+      // Fetch initial data
+      await fetchSensorData();
+      
+      if (!mounted) return;
+      
+      // Set up real-time subscription with unique channel name
+      const channel = supabase
+        .channel('index-kpi-updates', {
+          config: {
+            presence: {
+              key: `user-${Date.now()}`
+            }
+          }
+        })
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'sensor_readings'
+          },
+          (payload) => {
+            if (!mounted) return;
+            console.log('Real-time update received in Index:', payload);
+            const newReading = payload.new as SensorReading;
+            setLatestData(newReading);
+            setChartData(prev => {
+              const newData = [...prev];
+              newData.push({
+                time: new Date(newReading.timestamp).toLocaleTimeString(),
+                temperature: newReading.soil_temperature ?? newReading.temperature ?? 0,
+                humidity: newReading.soil_humidity ?? newReading.humidity ?? 0,
+                soilMoisture: newReading.soil_moisture ?? 0,
+                airTemperature: newReading.air_temperature ?? newReading.temperature ?? 0,
+                airHumidity: newReading.air_humidity ?? newReading.humidity ?? 0,
+                airQuality: newReading.air_air_quality_mq135 ?? newReading.air_quality_mq135 ?? 0,
+                alcohol: newReading.air_alcohol_mq3 ?? newReading.alcohol_mq3 ?? 0,
+                smoke: newReading.air_smoke_mq2 ?? newReading.smoke_mq2 ?? 0
+              });
+              return newData.slice(-20);
             });
-            return newData.slice(-20);
-          });
-          toast.success('New sensor data received!');
+            toast.success('New sensor data received!');
+          }
+        )
+        .subscribe();
+        
+      return () => {
+        mounted = false;
+        console.log('Cleaning up Index subscription');
+        if (channel) {
+          supabase.removeChannel(channel);
         }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
+      };
     };
-  }, []);
+    
+    const cleanup = setupRealtimeAndFetch();
+    
+    return () => {
+      mounted = false;
+      cleanup.then(cleanupFn => cleanupFn && cleanupFn());
+    };
+  }, [user, authLoading]);
 
   const getStatus = (value: number, type: 'temperature' | 'humidity' | 'soil' | 'air') => {
     switch (type) {
@@ -150,7 +191,7 @@ const Index = () => {
         return 'healthy';
     }
   };
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

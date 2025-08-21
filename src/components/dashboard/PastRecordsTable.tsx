@@ -30,14 +30,19 @@ export function PastRecordsTable() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let subscription: any;
+    let mounted = true;
+    
     const fetchRecords = async () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('sensor_readings')
         .select('*')
         .order('timestamp', { ascending: false });
-      if (!error && data) {
-        // Map old format to new format if needed
+      
+      if (error) {
+        console.error('Error fetching records:', error);
+      } else if (data && mounted) {
         const mapped = data.map((rec: any) => ({
           id: rec.id,
           timestamp: rec.timestamp,
@@ -52,9 +57,53 @@ export function PastRecordsTable() {
         }));
         setRecords(mapped);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
     };
-    fetchRecords();
+    
+    const setupRealtime = async () => {
+      await fetchRecords();
+      
+      if (!mounted) return;
+
+      // Subscribe to real-time changes
+      subscription = supabase
+        .channel('sensor-updates-table', {
+          config: {
+            presence: {
+              key: `table-${Date.now()}`
+            }
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sensor_readings' }, (payload) => {
+          if (!mounted) return;
+          console.log('Real-time update received in PastRecordsTable:', payload);
+          const rec = payload.new;
+          setRecords((prev) => [
+            {
+              id: rec.id,
+              timestamp: rec.timestamp,
+              air_temperature: rec.air_temperature ?? rec.temperature ?? null,
+              air_humidity: rec.air_humidity ?? rec.humidity ?? null,
+              air_air_quality_mq135: rec.air_air_quality_mq135 ?? rec.air_quality_mq135 ?? null,
+              air_alcohol_mq3: rec.air_alcohol_mq3 ?? rec.alcohol_mq3 ?? null,
+              air_smoke_mq2: rec.air_smoke_mq2 ?? rec.smoke_mq2 ?? null,
+              soil_temperature: rec.soil_temperature ?? null,
+              soil_humidity: rec.soil_humidity ?? null,
+              soil_moisture: rec.soil_moisture ?? null,
+            },
+            ...prev
+          ]);
+        })
+        .subscribe();
+    };
+    
+    setupRealtime();
+
+    return () => {
+      mounted = false;
+      console.log('Cleaning up PastRecordsTable subscription');
+      if (subscription) supabase.removeChannel(subscription);
+    };
   }, []);
 
   return (
