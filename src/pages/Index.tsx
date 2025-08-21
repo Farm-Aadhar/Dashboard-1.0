@@ -16,6 +16,7 @@ import {
   CloudDrizzle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import TrendAnalysis from '@/components/dashboard/trendAnalysis';
 
 interface SensorReading {
   id: string;
@@ -168,7 +169,10 @@ const Index = () => {
   return (
     <div className="space-y-6">
       {/* Responsive KPI Cards */}
-      <div className="flex flex-wrap gap-4 mb-4 justify-center items-stretch">
+      <div className="
+  grid grid-cols-2 gap-4 mb-4 justify-center items-stretch 
+  md:flex md:flex-wrap
+">
         <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
           <SensorCard
             title="Soil Level Temp"
@@ -251,26 +255,7 @@ const Index = () => {
         </div>
       </div>
       {/* Trend Analysis Widget */}
-      <Card className="sensor-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Trend Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-success/10 border border-success/20">
-              <TrendingUp className="h-4 w-4 text-success" />
-              <span className="text-sm">Temperature is 10% higher than last week's average</span>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-              <span className="text-sm">Humidity levels require monitoring</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <TrendAnalysis farmData={chartData.slice(-10)} />
 
       {/* Graph Selector Tabs */}
       <div className="my-8">
