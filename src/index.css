@@ -258,3 +258,29 @@ All colors are in HSL format for semantic theming
     background-color: hsl(var(--air-quality));
   }
 }
+
+/* Scrollbar for themed components */
+.custom-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted)); /* muted background */
+  border-radius: 9999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.6); /* semi-transparent primary */
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--muted)); /* creates a gap effect */
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary)); /* stronger primary on hover */
+}
+
+/* Firefox support */
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
+}

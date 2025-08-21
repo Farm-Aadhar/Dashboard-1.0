@@ -1,60 +1,23 @@
 import React, { useState } from "react";
 import { AlertTriangle, TrendingUp, CheckCircle2, Activity, CloudSun, Gauge, BarChart3, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-// Mock analysis function for demonstration
-function getAnalysis(farmData) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        farm_health: {
-          score: 78,
-          status: "Good - Farm conditions are stable with room for optimization"
-        },
-        alerts: [
-          {
-            type: "Soil Moisture Alert",
-            message: "Sector 2 showing moisture levels below optimal range",
-            recommendation: "Schedule irrigation within the next 6 hours to maintain crop health"
-          }
-        ],
-        trends: [
-          "Soil moisture has decreased by 8% over the past week",
-          "Temperature patterns showing consistent daily variations",
-          "Humidity levels remain within acceptable parameters"
-        ],
-        recommendations: [
-          "Implement drip irrigation system for better water efficiency",
-          "Monitor soil pH levels weekly during growing season",
-          "Consider cover crops to improve soil moisture retention"
-        ],
-        forecast: {
-          soil_moisture_next_3h: "Decreasing to 42%",
-          air_temp_next_3h: "Rising to 26°C"
-        },
-        indices: {
-          heat_stress_index: "Moderate",
-          irrigation_need_score: 7.2,
-          air_quality_risk: "Low",
-          sensor_reliability: "High (98%)"
-        }
-      });
-    }, 1500);
-  });
-}
+import { getAnalysis } from "../GeminiAnalysis"; // <-- updated API call
 
 // Type for the response
 type AnalysisResponse = {
-  farm_health: { score: number; status: string };
+  farm_health: { score: number; status: string; tags: string[] };
   alerts: { type: string; message: string; recommendation: string }[];
   trends: string[];
   recommendations: string[];
-  forecast: { soil_moisture_next_3h: string; air_temp_next_3h: string };
+  forecast: {
+    soil_moisture_next_3h: { label: string; icon: string; value: string };
+    air_temp_next_3h: { label: string; icon: string; value: string };
+  };
   indices: {
-    heat_stress_index: string;
-    irrigation_need_score: number;
-    air_quality_risk: string;
-    sensor_reliability: string;
+    heat_stress_index: { label: string; value: string; unit?: string };
+    irrigation_need_score: { label: string; value: number; unit?: string };
+    air_quality_risk: { label: string; value: string };
+    sensor_reliability: { label: string; value: string; unit?: string };
   };
 };
 
@@ -80,28 +43,14 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
     setLoading(false);
   };
 
-  const getHealthScoreColor = (score: number) => {
-    if (score >= 80) return "border-success bg-success/5";
-    if (score >= 60) return "border-warning bg-warning/5";
-    return "border-destructive bg-destructive/5";
-  };
-
-  const getHealthIcon = (score: number) => {
-    if (score >= 80) return <Activity className="h-5 w-5 text-success" />;
-    if (score >= 60) return <BarChart3 className="h-5 w-5 text-warning" />;
-    return <AlertTriangle className="h-5 w-5 text-destructive" />;
-  };
-
   const SpeedometerGauge = ({ score }: { score: number }) => {
     const radius = 80;
     const strokeWidth = 12;
     const normalizedRadius = radius - strokeWidth * 2;
     const circumference = normalizedRadius * Math.PI; // Half circle
     const strokeDasharray = `${circumference} ${circumference}`;
-    
-    // Calculate stroke offset based on score (0-100)
     const strokeDashoffset = circumference - (score / 100) * circumference;
-    
+
     const getScoreStatus = (score: number) => {
       if (score >= 85) return { text: "Excellent", color: "text-success", bgColor: "bg-success/10" };
       if (score >= 70) return { text: "Good", color: "text-success", bgColor: "bg-success/10" };
@@ -115,12 +64,7 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
     return (
       <div className="relative flex flex-col items-center">
         <div className="relative">
-          <svg
-            height={radius + 20}
-            width={radius * 2 + 20}
-            className="transform -90"
-          >
-            {/* Background arc */}
+          <svg height={radius + 20} width={radius * 2 + 20}>
             <path
               d={`M 20 ${radius + 10} A ${normalizedRadius} ${normalizedRadius} 0 0 1 ${radius * 2} ${radius + 10}`}
               fill="none"
@@ -128,8 +72,6 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               strokeWidth={strokeWidth}
               className="text-muted/20"
             />
-            
-            {/* Colored segments */}
             <defs>
               <linearGradient id="speedometer-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="hsl(var(--destructive))" />
@@ -138,8 +80,6 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
                 <stop offset="100%" stopColor="hsl(var(--success))" />
               </linearGradient>
             </defs>
-            
-            {/* Progress arc */}
             <path
               d={`M 20 ${radius + 10} A ${normalizedRadius} ${normalizedRadius} 0 0 1 ${radius * 2} ${radius + 10}`}
               fill="none"
@@ -151,15 +91,11 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               className="transition-all duration-1000 ease-out"
             />
           </svg>
-          
-          {/* Center score */}
           <div className="absolute mt-8 inset-0 flex flex-col items-center justify-center">
             <span className="text-3xl font-bold">{score}</span>
             <span className="text-sm text-muted-foreground">/ 100</span>
           </div>
         </div>
-        
-        {/* Status indicator */}
         <div className={`mt-4 px-4 py-2 rounded-full ${status.bgColor} ${status.color} font-medium text-sm`}>
           {status.text}
         </div>
@@ -184,8 +120,8 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
                 </p>
               </div>
             </div>
-            <button 
-              onClick={handleAnalysis} 
+            <button
+              onClick={handleAnalysis}
               disabled={loading || !farmData}
               className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -209,9 +145,7 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
             <div className="rounded-full bg-muted/50 p-4 w-fit mx-auto mb-4">
               <BarChart3 className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">
-              Ready to Analyze Your Farm Data
-            </h3>
+            <h3 className="text-lg font-medium text-foreground mb-2">Ready to Analyze Your Farm Data</h3>
             <p className="text-muted-foreground">
               Click "Generate Analysis" to get detailed insights about your farm's performance and recommendations.
             </p>
@@ -222,9 +156,8 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
       {/* Analysis Results */}
       {analysis && (
         <div className="space-y-8">
-          {/* Asymmetric Layout - Farm Health + Quick Stats */}
+          {/* Farm Health + Quick Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Farm Health Score - Takes 2 columns */}
             <div className="lg:col-span-2">
               <div className="border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-6">
                 <div className="flex flex-col md:flex-row items-center gap-8">
@@ -232,19 +165,14 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
                     <SpeedometerGauge score={analysis.farm_health.score} />
                   </div>
                   <div className="flex-1 text-center md:text-left">
-                    <h2 className="text-2xl font-bold text-primary mb-2">
-                      Farm Health Assessment
-                    </h2>
-                    <p className="text-muted-foreground text-lg leading-relaxed">
-                      {analysis.farm_health.status}
-                    </p>
+                    <h2 className="text-2xl font-bold text-primary mb-2">Farm Health Assessment</h2>
+                    <p className="text-muted-foreground text-lg leading-relaxed">{analysis.farm_health.status}</p>
                     <div className="mt-4 flex flex-wrap gap-2 justify-center md:justify-start">
-                      <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">
-                        Real-time Analysis
-                      </span>
-                      <span className="px-3 py-1 bg-accent/10 text-accent-foreground rounded-full text-sm">
-                        AI Powered
-                      </span>
+                      {analysis.farm_health.tags.map((tag, idx) => (
+                        <span key={idx} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -256,19 +184,19 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               <div className="border border-accent/20 bg-accent/5 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Gauge className="h-4 w-4 text-accent-foreground" />
-                  <span className="font-medium text-sm">Irrigation Need</span>
+                  <span className="font-medium text-sm">{analysis.indices.irrigation_need_score.label}</span>
                 </div>
-                <div className="text-2xl font-bold">{analysis.indices.irrigation_need_score}</div>
-                <div className="text-xs text-muted-foreground">out of 10</div>
+                <div className="text-2xl font-bold">{analysis.indices.irrigation_need_score.value}</div>
+                <div className="text-xs text-muted-foreground">{analysis.indices.irrigation_need_score.unit}</div>
               </div>
-              
+
               <div className="border border-secondary/20 bg-secondary/5 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <CloudSun className="h-4 w-4 text-secondary-foreground" />
-                  <span className="font-medium text-sm">Heat Stress</span>
+                  <span className="font-medium text-sm">{analysis.indices.heat_stress_index.label}</span>
                 </div>
-                <div className="text-lg font-semibold">{analysis.indices.heat_stress_index}</div>
-                <div className="text-xs text-muted-foreground">Current level</div>
+                <div className="text-lg font-semibold">{analysis.indices.heat_stress_index.value}</div>
+                <div className="text-xs text-muted-foreground">{analysis.indices.heat_stress_index.unit}</div>
               </div>
             </div>
           </div>
@@ -287,16 +215,9 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               </div>
               <div className="p-4 space-y-3">
                 {analysis.alerts.map((alert, idx) => (
-                  <div
-                    key={idx}
-                    className="border-l-4 border-destructive bg-destructive/5 p-4 rounded-r-lg"
-                  >
-                    <h4 className="font-medium text-destructive mb-1">
-                      {alert.type}
-                    </h4>
-                    <p className="text-sm text-foreground mb-2">
-                      {alert.message}
-                    </p>
+                  <div key={idx} className="border-l-4 border-destructive bg-destructive/5 p-4 rounded-r-lg">
+                    <h4 className="font-medium text-destructive mb-1">{alert.type}</h4>
+                    <p className="text-sm text-foreground mb-2">{alert.message}</p>
                     <div className="bg-background/50 rounded p-2">
                       <p className="text-sm text-muted-foreground">
                         <span className="font-medium">Recommendation:</span> {alert.recommendation}
@@ -308,9 +229,8 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
             </div>
           )}
 
-          {/* Main Grid */}
+          {/* Trends + Recommendations */}
           <div className="grid lg:grid-cols-2 gap-6">
-            {/* Trends */}
             {analysis.trends.length > 0 && (
               <div className="border border-info/20 rounded-lg">
                 <div className="p-4 pb-3 border-b border-info/10">
@@ -321,10 +241,7 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
                 </div>
                 <div className="p-4 space-y-3">
                   {analysis.trends.map((trend, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-info/5 border border-info/10"
-                    >
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-info/5 border border-info/10">
                       <div className="rounded-full bg-info/20 p-1 mt-1">
                         <div className="w-2 h-2 bg-info rounded-full"></div>
                       </div>
@@ -335,7 +252,6 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               </div>
             )}
 
-            {/* Recommendations */}
             {analysis.recommendations.length > 0 && (
               <div className="border border-success/20 rounded-lg">
                 <div className="p-4 pb-3 border-b border-success/10">
@@ -346,10 +262,7 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
                 </div>
                 <div className="p-4 space-y-3">
                   {analysis.recommendations.map((rec, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/10"
-                    >
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/10">
                       <CheckCircle2 className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
                       <p className="text-sm">{rec}</p>
                     </div>
@@ -359,9 +272,8 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
             )}
           </div>
 
-          {/* Bottom Grid */}
+          {/* Forecast + Indices */}
           <div className="grid grid-cols-2 gap-6">
-            {/* Forecast */}
             <Card className="border-accent/20">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-accent-foreground">
@@ -371,27 +283,22 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-accent/5 rounded-lg">
-                  <span className="text-lg">🌱</span>
+                  <span className="text-lg">{analysis.forecast.soil_moisture_next_3h.icon}</span>
                   <div>
-                    <p className="font-medium">Soil Moisture</p>
-                    <p className="text-sm text-muted-foreground">
-                      {analysis.forecast.soil_moisture_next_3h}
-                    </p>
+                    <p className="font-medium">{analysis.forecast.soil_moisture_next_3h.label}</p>
+                    <p className="text-sm text-muted-foreground">{analysis.forecast.soil_moisture_next_3h.value}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-accent/5 rounded-lg">
-                  <span className="text-lg">🌡️</span>
+                  <span className="text-lg">{analysis.forecast.air_temp_next_3h.icon}</span>
                   <div>
-                    <p className="font-medium">Air Temperature</p>
-                    <p className="text-sm text-muted-foreground">
-                      {analysis.forecast.air_temp_next_3h}
-                    </p>
+                    <p className="font-medium">{analysis.forecast.air_temp_next_3h.label}</p>
+                    <p className="text-sm text-muted-foreground">{analysis.forecast.air_temp_next_3h.value}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Indices */}
             <Card className="border-secondary/20">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-secondary-foreground">
@@ -402,27 +309,25 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
-                    <p className="text-sm font-medium">Heat Stress</p>
+                    <p className="text-sm font-medium">{analysis.indices.heat_stress_index.label}</p>
                     <p className="text-sm text-muted-foreground">
-                      {analysis.indices.heat_stress_index}
+                      {analysis.indices.heat_stress_index.value} {analysis.indices.heat_stress_index.unit ?? ""}
                     </p>
                   </div>
                   <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
-                    <p className="text-sm font-medium">Irrigation Need</p>
+                    <p className="text-sm font-medium">{analysis.indices.irrigation_need_score.label}</p>
                     <p className="text-sm text-muted-foreground">
-                      {analysis.indices.irrigation_need_score}/10
+                      {analysis.indices.irrigation_need_score.value} {analysis.indices.irrigation_need_score.unit ?? ""}
                     </p>
                   </div>
                   <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
-                    <p className="text-sm font-medium">Air Quality</p>
-                    <p className="text-sm text-muted-foreground">
-                      {analysis.indices.air_quality_risk}
-                    </p>
+                    <p className="text-sm font-medium">{analysis.indices.air_quality_risk.label}</p>
+                    <p className="text-sm text-muted-foreground">{analysis.indices.air_quality_risk.value}</p>
                   </div>
                   <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
-                    <p className="text-sm font-medium">Sensor Health</p>
+                    <p className="text-sm font-medium">{analysis.indices.sensor_reliability.label}</p>
                     <p className="text-sm text-muted-foreground">
-                      {analysis.indices.sensor_reliability}
+                      {analysis.indices.sensor_reliability.value} {analysis.indices.sensor_reliability.unit ?? ""}
                     </p>
                   </div>
                 </div>

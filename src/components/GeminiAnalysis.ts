@@ -16,25 +16,32 @@ export async function getAnalysis(farmData: any[]) {
               parts: [
                 {
                   text: `
-Analyze this farm sensor data and return JSON ONLY in the exact format below. 
-Wrap your answer inside a JSON object, no explanations, no extra text.
+                  Analyze this farm sensor data and return JSON ONLY in the exact format below.Also Make sure the data u give in farm_health section Is more real and should be highly sensitive to the data you receive. The farm_health, score specifically Should be more precise to the data there should be no happening in there since it is an important KPI.
+                  No explanations, no extra text.
 
-{
-  "farm_health": { "score": number, "status": "string" },
-  "alerts": [ { "type": "string", "message": "string", "recommendation": "string" } ],
-  "trends": ["string"],
-  "recommendations": ["string"],
-  "forecast": { "soil_moisture_next_3h": "string", "air_temp_next_3h": "string" },
-  "indices": {
-    "heat_stress_index": "string",
-    "irrigation_need_score": number,
-    "air_quality_risk": "string",
-    "sensor_reliability": "string"
-  }
-}
+                  {
+                    "farm_health": { 
+                      "score": number, 
+                      "status": "string", 
+                      "tags": ["string"] 
+                    },
+                    "alerts": [ { "type": "string", "message": "string", "recommendation": "string" } ],
+                    "trends": ["string"],
+                    "recommendations": ["string"],
+                    "forecast": {
+                      "soil_moisture_next_3h": { "label": "string", "icon": "emoji or string", "value": "string" },
+                      "air_temp_next_3h": { "label": "string", "icon": "emoji or string", "value": "string" }
+                    },
+                    "indices": {
+                      "heat_stress_index": { "label": "string", "value": "string", "unit": "string" },
+                      "irrigation_need_score": { "label": "string", "value": number, "unit": "string" },
+                      "air_quality_risk": { "label": "string", "value": "string" },
+                      "sensor_reliability": { "label": "string", "value": "string", "unit": "string" }
+                    }
+                  }
 
-Sensor Data: ${safeData}
-                  `,
+                  Sensor Data: ${safeData}
+                  `
                 },
               ],
             },
