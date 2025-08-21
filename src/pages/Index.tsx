@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,7 +46,7 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [selectedGraph, setSelectedGraph] = useState('ppm');
 
-  const fetchSensorData = async () => {
+  const fetchSensorData = useCallback(async () => {
     try {
       // Fetch latest reading
       const { data: latest, error: latestError } = await supabase
@@ -95,7 +95,33 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Optimized real-time data update callback
+  const updateChartData = useCallback((newReading: SensorReading) => {
+    setChartData(prev => {
+      const newDataPoint = {
+        time: new Date(newReading.timestamp).toLocaleTimeString(),
+        temperature: newReading.soil_temperature ?? newReading.temperature ?? 0,
+        humidity: newReading.soil_humidity ?? newReading.humidity ?? 0,
+        soilMoisture: newReading.soil_moisture ?? 0,
+        airTemperature: newReading.air_temperature ?? newReading.temperature ?? 0,
+        airHumidity: newReading.air_humidity ?? newReading.humidity ?? 0,
+        airQuality: newReading.air_air_quality_mq135 ?? newReading.air_quality_mq135 ?? 0,
+        alcohol: newReading.air_alcohol_mq3 ?? newReading.alcohol_mq3 ?? 0,
+        smoke: newReading.air_smoke_mq2 ?? newReading.smoke_mq2 ?? 0
+      };
+      
+      // Only update if this is actually new data (avoid duplicate updates)
+      const lastTime = prev[prev.length - 1]?.time;
+      if (lastTime === newDataPoint.time) {
+        return prev; // No change if same timestamp
+      }
+      
+      const newData = [...prev, newDataPoint];
+      return newData.slice(-20); // Keep only last 20 points
+    });
+  }, []);
 
   useEffect(() => {
     // Don't fetch data if authentication is still loading or user is not authenticated
@@ -132,21 +158,7 @@ const Index = () => {
             console.log('Real-time update received in Index:', payload);
             const newReading = payload.new as SensorReading;
             setLatestData(newReading);
-            setChartData(prev => {
-              const newData = [...prev];
-              newData.push({
-                time: new Date(newReading.timestamp).toLocaleTimeString(),
-                temperature: newReading.soil_temperature ?? newReading.temperature ?? 0,
-                humidity: newReading.soil_humidity ?? newReading.humidity ?? 0,
-                soilMoisture: newReading.soil_moisture ?? 0,
-                airTemperature: newReading.air_temperature ?? newReading.temperature ?? 0,
-                airHumidity: newReading.air_humidity ?? newReading.humidity ?? 0,
-                airQuality: newReading.air_air_quality_mq135 ?? newReading.air_quality_mq135 ?? 0,
-                alcohol: newReading.air_alcohol_mq3 ?? newReading.alcohol_mq3 ?? 0,
-                smoke: newReading.air_smoke_mq2 ?? newReading.smoke_mq2 ?? 0
-              });
-              return newData.slice(-20);
-            });
+            updateChartData(newReading);
             toast.success('New sensor data received!');
           }
         )
@@ -167,9 +179,44 @@ const Index = () => {
       mounted = false;
       cleanup.then(cleanupFn => cleanupFn && cleanupFn());
     };
+  }, [user, authLoading, fetchSensorData, updateChartData]);
+
+  // Optimistic reload effect for KPI cards - refresh every 5 seconds (reduced frequency)
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
+
+    const kpiRefreshInterval = setInterval(async () => {
+      try {
+        // Fetch only the latest reading for KPI cards optimization
+        const { data: latest, error } = await supabase
+          .from('sensor_readings')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(1);
+
+        if (latest && latest.length > 0 && !error) {
+          // Only update if the timestamp is different (avoid unnecessary updates)
+          setLatestData(prev => {
+            if (prev && prev.timestamp === latest[0].timestamp) {
+              return prev; // No change
+            }
+            console.log('KPI cards optimistically updated');
+            return latest[0];
+          });
+        }
+      } catch (error) {
+        console.error('Error in optimistic KPI refresh:', error);
+      }
+    }, 5000); // Refresh every 5 seconds (reduced from 2 seconds)
+
+    return () => {
+      clearInterval(kpiRefreshInterval);
+    };
   }, [user, authLoading]);
 
-  const getStatus = (value: number, type: 'temperature' | 'humidity' | 'soil' | 'air') => {
+  const getStatus = useCallback((value: number, type: 'temperature' | 'humidity' | 'soil' | 'air') => {
     switch (type) {
       case 'temperature':
         if (value < 18 || value > 32) return 'critical';
@@ -190,7 +237,27 @@ const Index = () => {
       default:
         return 'healthy';
     }
-  };
+  }, []);
+
+  // Memoize chart props to prevent unnecessary re-renders
+  const chartProps = useMemo(() => ({
+    ppm: {
+      data: chartData,
+      title: "Air Values (Temperature, Humidity, Air Quality, Alcohol, Smoke)",
+      lines: ["airTemperature", "airHumidity", "airQuality", "alcohol", "smoke"]
+    },
+    soil: {
+      data: chartData,
+      title: "Soil Values (Moisture, Temperature, Humidity)",
+      lines: ["soilMoisture", "temperature", "humidity"]
+    },
+    compare: {
+      data: chartData,
+      title: "Air vs Soil Comparison (Temperature & Humidity)",
+      lines: ["airTemperature", "airHumidity", "temperature", "humidity"],
+      colorScheme: "blue-orange" as const
+    }
+  }), [chartData]);
   if (authLoading || loading) {
     return (
       <div className="space-y-6">
@@ -304,7 +371,7 @@ const Index = () => {
           {[
             { key: 'soil', label: 'Soil Values' },
             { key: 'ppm', label: 'Air Values' },
-            { key: 'compare', label: 'Soil vs Air' }
+            { key: 'compare', label: 'Air vs Soil' }
           ].map(tab => (
             <button
               key={tab.key}
@@ -326,25 +393,13 @@ const Index = () => {
         </div>
 
         {selectedGraph === 'ppm' && (
-          <SensorChart
-            data={chartData}
-            title="PPM Values (Air Quality, Alcohol, Smoke)"
-            lines={["airQuality", "alcohol", "smoke"]}
-          />
+          <SensorChart {...chartProps.ppm} />
         )}
         {selectedGraph === 'soil' && (
-          <SensorChart
-            data={chartData}
-            title="Soil Values (Moisture, Temp, Humidity)"
-            lines={["soilMoisture", "temperature", "humidity"]}
-          />
+          <SensorChart {...chartProps.soil} />
         )}
         {selectedGraph === 'compare' && (
-          <SensorChart
-            data={chartData}
-            title="Soil vs Air Humidity & Temp"
-            lines={["airTemperature", "airHumidity", "temperature", "humidity"]}
-          />
+          <SensorChart {...chartProps.compare} />
         )}
       </div>
       {/* Past Records Table */}

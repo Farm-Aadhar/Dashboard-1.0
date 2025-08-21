@@ -27,7 +27,7 @@ export default function Reports() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [selectedPeriod, setSelectedPeriod] = useState("7");
-  const [selectedMetric, setSelectedMetric] = useState("temperature");
+  const [selectedMetric, setSelectedMetric] = useState("mixed");
 
   // Fetch sensor data for reports
   const { data: sensorData = [] } = useQuery({
@@ -83,14 +83,14 @@ export default function Reports() {
   // Process sensor data for charts
   const processedSensorData = sensorData.map(reading => ({
     timestamp: new Date(reading.timestamp).toLocaleDateString(),
-    air_temperature: reading.air_temperature ?? reading.temperature ?? null,
-    air_humidity: reading.air_humidity ?? reading.humidity ?? null,
+    air_temperature: (reading as any).air_temperature ?? reading.temperature ?? null,
+    air_humidity: (reading as any).air_humidity ?? reading.humidity ?? null,
     soil_moisture: reading.soil_moisture ?? null,
-    air_air_quality_mq135: reading.air_air_quality_mq135 ?? reading.air_quality_mq135 ?? null,
-    air_alcohol_mq3: reading.air_alcohol_mq3 ?? reading.alcohol_mq3 ?? null,
-    air_smoke_mq2: reading.air_smoke_mq2 ?? reading.smoke_mq2 ?? null,
-    soil_temperature: reading.soil_temperature ?? reading.temperature ?? null,
-    soil_humidity: reading.soil_humidity ?? reading.humidity ?? null,
+    air_air_quality_mq135: (reading as any).air_air_quality_mq135 ?? reading.air_quality_mq135 ?? null,
+    air_alcohol_mq3: (reading as any).air_alcohol_mq3 ?? reading.alcohol_mq3 ?? null,
+    air_smoke_mq2: (reading as any).air_smoke_mq2 ?? reading.smoke_mq2 ?? null,
+    soil_temperature: (reading as any).soil_temperature ?? reading.temperature ?? null,
+    soil_humidity: (reading as any).soil_humidity ?? reading.humidity ?? null,
   }));
 
   // Task completion data
@@ -183,6 +183,7 @@ export default function Reports() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="mixed">{t('Mixed (All Metrics)')}</SelectItem>
                 <SelectItem value="air_temperature">{t('Air Temperature')}</SelectItem>
                 <SelectItem value="air_humidity">{t('Air Humidity')}</SelectItem>
                 <SelectItem value="soil_moisture">{t('Soil Moisture')}</SelectItem>
@@ -260,16 +261,161 @@ export default function Reports() {
                 <XAxis dataKey="timestamp" />
                 <YAxis />
                 <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey={selectedMetric} 
-                  stroke="#10b981" 
-                  strokeWidth={2}
-                  dot={{ fill: '#10b981' }}
-                />
+                {selectedMetric === "mixed" ? (
+                  // Show multiple lines for mixed view
+                  <>
+                    <Line 
+                      type="monotone" 
+                      dataKey="air_temperature" 
+                      stroke="#e74c3c" 
+                      strokeWidth={2}
+                      dot={{ fill: '#e74c3c', strokeWidth: 2 }}
+                      name="Air Temperature (°C)"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="air_humidity" 
+                      stroke="#3498db" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3498db', strokeWidth: 2 }}
+                      name="Air Humidity (%)"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="soil_moisture" 
+                      stroke="#2ecc71" 
+                      strokeWidth={2}
+                      dot={{ fill: '#2ecc71', strokeWidth: 2 }}
+                      name="Soil Moisture (%)"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="soil_temperature" 
+                      stroke="#f39c12" 
+                      strokeWidth={2}
+                      dot={{ fill: '#f39c12', strokeWidth: 2 }}
+                      name="Soil Temperature (°C)"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="air_air_quality_mq135" 
+                      stroke="#9b59b6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#9b59b6', strokeWidth: 2 }}
+                      name="Air Quality (ppm)"
+                    />
+                  </>
+                ) : (
+                  // Show single line for specific metric
+                  <Line 
+                    type="monotone" 
+                    dataKey={selectedMetric} 
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    dot={{ fill: '#10b981' }}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
+          
+          {/* Current Values Display */}
+          {processedSensorData.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <h4 className="text-sm font-medium text-muted-foreground mb-3">{t('Current Values')}</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {selectedMetric === "mixed" ? (
+                  // Show current values for all metrics in mixed view
+                  <>
+                    {processedSensorData[processedSensorData.length - 1]?.air_temperature !== null && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: '#e74c3c' }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground truncate">{t('Air Temperature')}</p>
+                          <p className="text-sm font-semibold">
+                            {processedSensorData[processedSensorData.length - 1]?.air_temperature?.toFixed(1) || '0.0'} 
+                            <span className="text-xs text-muted-foreground ml-1">°C</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {processedSensorData[processedSensorData.length - 1]?.air_humidity !== null && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: '#3498db' }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground truncate">{t('Air Humidity')}</p>
+                          <p className="text-sm font-semibold">
+                            {processedSensorData[processedSensorData.length - 1]?.air_humidity?.toFixed(1) || '0.0'} 
+                            <span className="text-xs text-muted-foreground ml-1">%</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {processedSensorData[processedSensorData.length - 1]?.soil_moisture !== null && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: '#2ecc71' }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground truncate">{t('Soil Moisture')}</p>
+                          <p className="text-sm font-semibold">
+                            {processedSensorData[processedSensorData.length - 1]?.soil_moisture?.toFixed(1) || '0.0'} 
+                            <span className="text-xs text-muted-foreground ml-1">%</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {processedSensorData[processedSensorData.length - 1]?.soil_temperature !== null && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: '#f39c12' }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground truncate">{t('Soil Temperature')}</p>
+                          <p className="text-sm font-semibold">
+                            {processedSensorData[processedSensorData.length - 1]?.soil_temperature?.toFixed(1) || '0.0'} 
+                            <span className="text-xs text-muted-foreground ml-1">°C</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {processedSensorData[processedSensorData.length - 1]?.air_air_quality_mq135 !== null && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: '#9b59b6' }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground truncate">{t('Air Quality')}</p>
+                          <p className="text-sm font-semibold">
+                            {processedSensorData[processedSensorData.length - 1]?.air_air_quality_mq135?.toFixed(0) || '0'} 
+                            <span className="text-xs text-muted-foreground ml-1">ppm</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // Show current value for selected metric
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: '#10b981' }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-muted-foreground truncate">
+                        {selectedMetric === 'air_temperature' && t('Air Temperature')}
+                        {selectedMetric === 'air_humidity' && t('Air Humidity')}
+                        {selectedMetric === 'soil_moisture' && t('Soil Moisture')}
+                        {selectedMetric === 'air_air_quality_mq135' && t('Air Quality')}
+                        {selectedMetric === 'air_alcohol_mq3' && t('Alcohol')}
+                        {selectedMetric === 'air_smoke_mq2' && t('Smoke')}
+                        {selectedMetric === 'soil_temperature' && t('Soil Temperature')}
+                        {selectedMetric === 'soil_humidity' && t('Soil Humidity')}
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {processedSensorData[processedSensorData.length - 1]?.[selectedMetric]?.toFixed(1) || '0.0'} 
+                        <span className="text-xs text-muted-foreground ml-1">
+                          {(selectedMetric.includes('temperature')) ? '°C' : 
+                           (selectedMetric.includes('humidity') || selectedMetric.includes('moisture')) ? '%' : 'ppm'}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

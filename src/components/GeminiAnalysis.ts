@@ -16,9 +16,24 @@ export async function getAnalysis(farmData: any[]) {
               parts: [
                 {
                   text: `
-                  Analyze this farm sensor data and return JSON ONLY in the exact format below.Also Make sure the data u give in farm_health section Is more real and should be highly sensitive to the data you receive. The farm_health, score specifically Should be more precise to the data there should be no happening in there since it is an important KPI.
-                  No explanations, no extra text.
+                  Analyze this farm sensor data and return JSON ONLY in the exact format below. Make the farm_health score highly sensitive and precise to the actual data received. Provide clear, descriptive labels that indicate whether LOW/HIGH values are good or bad.
+                  No explanations, no extra text. Include timestamps and exact values for any significant changes.
+                  
+                  IMPORTANT REFERENCE VALUES FOR NORMAL POLYHOUSE CONDITIONS:
+                  - Air Temperature: 15-40°C (base: 25°C, normal range: ±3°C)
+                  - Air Humidity: 30-90% (base: 65%, normal range: ±8%)
+                  - Air Quality (MQ135): 70-150 ppm (base: 100 ppm, normal range: ±20 ppm, lower = better)
+                  - Alcohol (MQ3): 100-500 ppm (base: 150 ppm, normal range: ±40 ppm)
+                  - Smoke (MQ2): 200-400 ppm (base: 250 ppm, normal range: ±80 ppm)
+                  - Soil Temperature: 15-35°C (base: 22°C, normal range: ±2°C)
+                  - Soil Humidity: 40-90% (base: 70%, normal range: ±10%)
+                  - Soil Moisture: 20-90% (base: 60%, normal range: ±15%)
 
+                  FORMAT REQUIREMENTS:
+                  - For indices, use descriptive labels like "Heat Stress Risk" instead of just "Heat Stress"
+                  - Include risk levels (Low Risk, Moderate Risk, High Risk) or status (Good, Fair, Poor)
+                  - Make values intuitive (higher numbers = better for positive metrics, lower = better for risk metrics)
+                  
                   {
                     "farm_health": { 
                       "score": number, 
@@ -33,10 +48,10 @@ export async function getAnalysis(farmData: any[]) {
                       "air_temp_next_3h": { "label": "string", "icon": "emoji or string", "value": "string" }
                     },
                     "indices": {
-                      "heat_stress_index": { "label": "string", "value": "string", "unit": "string" },
-                      "irrigation_need_score": { "label": "string", "value": number, "unit": "string" },
-                      "air_quality_risk": { "label": "string", "value": "string" },
-                      "sensor_reliability": { "label": "string", "value": "string", "unit": "string" }
+                      "heat_stress_index": { "label": "Heat Stress Risk", "value": "Low Risk/Moderate Risk/High Risk", "unit": "" },
+                      "irrigation_need_score": { "label": "Irrigation Priority", "value": number_1_to_10, "unit": "/10" },
+                      "air_quality_risk": { "label": "Air Quality Status", "value": "Excellent/Good/Fair/Poor" },
+                      "sensor_reliability": { "label": "Data Reliability", "value": "High/Medium/Low", "unit": "" }
                     }
                   }
 

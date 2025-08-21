@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, memo, useCallback } from "react";
 import { AlertTriangle, TrendingUp, CheckCircle2, Activity, CloudSun, Gauge, BarChart3, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getAnalysis } from "../GeminiAnalysis"; // <-- updated API call
@@ -25,11 +25,11 @@ type TrendAnalysisProps = {
   farmData?: any[];
 };
 
-function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: TrendAnalysisProps) {
+const TrendAnalysis = memo(function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: TrendAnalysisProps) {
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleAnalysis = async () => {
+  const handleAnalysis = useCallback(async () => {
     if (!farmData || farmData.length === 0) return;
     setLoading(true);
 
@@ -41,7 +41,54 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
     }
 
     setLoading(false);
-  };
+  }, [farmData]);
+
+  // Helper function to determine color based on index value and type
+  const getIndexColor = useCallback((value: any, type: string) => {
+    const valueStr = String(value).toLowerCase();
+    
+    switch (type) {
+      case 'heat_stress':
+        if (valueStr.includes('low') || valueStr.includes('good')) {
+          return 'bg-success/10 border-success/20 text-success';
+        } else if (valueStr.includes('high') || valueStr.includes('critical')) {
+          return 'bg-destructive/10 border-destructive/20 text-destructive';
+        } else {
+          return 'bg-warning/10 border-warning/20 text-warning';
+        }
+      
+      case 'irrigation':
+        const numValue = typeof value === 'number' ? value : parseInt(valueStr);
+        if (numValue <= 3) {
+          return 'bg-success/10 border-success/20 text-success';
+        } else if (numValue >= 7) {
+          return 'bg-destructive/10 border-destructive/20 text-destructive';
+        } else {
+          return 'bg-warning/10 border-warning/20 text-warning';
+        }
+      
+      case 'air_quality':
+        if (valueStr.includes('excellent') || valueStr.includes('good')) {
+          return 'bg-success/10 border-success/20 text-success';
+        } else if (valueStr.includes('poor') || valueStr.includes('critical')) {
+          return 'bg-destructive/10 border-destructive/20 text-destructive';
+        } else {
+          return 'bg-warning/10 border-warning/20 text-warning';
+        }
+      
+      case 'reliability':
+        if (valueStr.includes('high') || valueStr.includes('good')) {
+          return 'bg-success/10 border-success/20 text-success';
+        } else if (valueStr.includes('low') || valueStr.includes('poor')) {
+          return 'bg-destructive/10 border-destructive/20 text-destructive';
+        } else {
+          return 'bg-warning/10 border-warning/20 text-warning';
+        }
+      
+      default:
+        return 'bg-secondary/5 border-secondary/10';
+    }
+  }, []);
 
   const SpeedometerGauge = ({ score }: { score: number }) => {
     const radius = 80;
@@ -308,23 +355,23 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
+                  <div className={`p-3 rounded-lg border ${getIndexColor(analysis.indices.heat_stress_index.value, 'heat_stress')}`}>
                     <p className="text-sm font-medium">{analysis.indices.heat_stress_index.label}</p>
                     <p className="text-sm text-muted-foreground">
                       {analysis.indices.heat_stress_index.value} {analysis.indices.heat_stress_index.unit ?? ""}
                     </p>
                   </div>
-                  <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
+                  <div className={`p-3 rounded-lg border ${getIndexColor(analysis.indices.irrigation_need_score.value, 'irrigation')}`}>
                     <p className="text-sm font-medium">{analysis.indices.irrigation_need_score.label}</p>
                     <p className="text-sm text-muted-foreground">
                       {analysis.indices.irrigation_need_score.value} {analysis.indices.irrigation_need_score.unit ?? ""}
                     </p>
                   </div>
-                  <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
+                  <div className={`p-3 rounded-lg border ${getIndexColor(analysis.indices.air_quality_risk.value, 'air_quality')}`}>
                     <p className="text-sm font-medium">{analysis.indices.air_quality_risk.label}</p>
                     <p className="text-sm text-muted-foreground">{analysis.indices.air_quality_risk.value}</p>
                   </div>
-                  <div className="p-3 bg-secondary/5 rounded-lg border border-secondary/10">
+                  <div className={`p-3 rounded-lg border ${getIndexColor(analysis.indices.sensor_reliability.value, 'reliability')}`}>
                     <p className="text-sm font-medium">{analysis.indices.sensor_reliability.label}</p>
                     <p className="text-sm text-muted-foreground">
                       {analysis.indices.sensor_reliability.value} {analysis.indices.sensor_reliability.unit ?? ""}
@@ -338,6 +385,6 @@ function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: Tr
       )}
     </div>
   );
-}
+});
 
 export default TrendAnalysis;
