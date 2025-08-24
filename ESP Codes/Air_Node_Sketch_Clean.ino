@@ -42,6 +42,32 @@
 #include <SPIFFS.h>
 
 // ============================================================================
+// EMAIL CONFIGURATION (Using HTTP POST to email service)
+// ============================================================================
+
+// Using EmailJS or similar service to send emails
+const char* EMAIL_SERVICE_URL = "https://api.emailjs.com/api/v1.0/email/send";
+const char* EMAIL_SERVICE_ID = "service_farminsight";     // You'll set this up
+const char* EMAIL_TEMPLATE_ID = "template_daily_data";   
+const char* EMAIL_PUBLIC_KEY = "your_emailjs_public_key";
+const char* RECIPIENT_EMAIL = "Aniketsadakale1014@gmail.com";
+
+// ============================================================================
+// DAILY FILE STORAGE CONFIGURATION
+// ============================================================================
+
+const char* DAILY_DATA_FILE = "/daily_sensor_data.json";
+const char* SESSION_DATA_FILE = "/session_data.json";
+const char* METADATA_FILE = "/file_metadata.json";
+const long DATA_SAVE_INTERVAL = 300000;  // Save every 5 minutes (300,000 ms)
+unsigned long lastDataSave = 0;
+unsigned long lastMidnightCheck = 0;
+const long MIDNIGHT_CHECK_INTERVAL = 60000;  // Check for midnight every minute
+String currentDate = "";
+bool emailSentOnStartup = false;
+bool dailyReportSent = false;
+
+// ============================================================================
 // NETWORK CONFIGURATION
 // ============================================================================
 
@@ -133,12 +159,33 @@ void updateDisplay();
 void checkDashboardStatus();
 void blinkLED(int times = 1, int delayMs = 100);
 
+// Daily file storage and email functions
+void saveSensorDataToDaily();
+void saveSensorDataToSession();
+void sendDailyReport();
+void sendLastSessionData();
+void initializeDailyFile();
+void initializeSessionFile();
+String getCurrentDate();
+String getCurrentTime();
+String loadDailyFile();
+String loadSessionFile();
+void clearDailyFile();
+void clearSessionFile();
+void checkForMidnight();
+
 // Web server handlers
 void handleRoot();
 void handleToggleLogging();
 void handleEnableLogging();
 void handleDisableLogging();
 void handleNotFound();
+void handleViewDailyData();    // View today's data
+void handleDownloadDaily();    // Download daily file
+void handleViewSessionData();  // View session data
+void handleDownloadSession();  // Download session file
+void handleSendDailyReport();  // Manual daily report
+void handleSendSessionData();  // Manual session data email
 
 // ============================================================================
 // SETUP FUNCTION
@@ -146,14 +193,22 @@ void handleNotFound();
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n" + String("=").repeat(50));
+  Serial.println("\n==================================================");
   Serial.println("🌱 Farm Insight Garden - Air Quality Node");
   Serial.println("Starting up...");
-  Serial.println(String("=").repeat(50));
+  Serial.println("==================================================");
 
   setupHardware();
   connectToWiFi();
   setupWebServer();
+  
+  // Initialize file systems
+  initializeDailyFile();
+  initializeSessionFile();
+  
+  // Send previous session data via email on startup
+  Serial.println("📧 Sending last session data via email...");
+  sendLastSessionData();
 
   Serial.println("✅ Setup completed successfully!");
   Serial.println("📡 Web interface: http://air-node.local");
@@ -186,6 +241,12 @@ void loop() {
     lastStatusCheck = millis();
   }
 
+  // Check for midnight to send daily reports
+  if (millis() - lastMidnightCheck >= MIDNIGHT_CHECK_INTERVAL) {
+    checkForMidnight();
+    lastMidnightCheck = millis();
+  }
+
   // Send data if both local logging and dashboard collection are enabled
   if (millis() - lastDataSend >= DATA_SEND_INTERVAL) {
     if (isLoggingEnabled && dashboardCollectionEnabled) {
@@ -196,6 +257,15 @@ void loop() {
       Serial.println("📦 Caching data locally (dashboard collection disabled)");
     }
     lastDataSend = millis();
+  }
+
+  // Save data to both daily and session files every 5 minutes
+  if (millis() - lastDataSave >= DATA_SAVE_INTERVAL) {
+    if (isLoggingEnabled) {
+      saveSensorDataToDaily();
+      saveSensorDataToSession();
+      lastDataSave = millis();
+    }
   }
 
   // Alive indicator - slow blink when not sending data
@@ -336,6 +406,12 @@ void setupWebServer() {
   server.on("/toggle-logging", handleToggleLogging);
   server.on("/enable-logging", handleEnableLogging);
   server.on("/disable-logging", handleDisableLogging);
+  server.on("/daily-data", handleViewDailyData);        // View daily data
+  server.on("/download-daily", handleDownloadDaily);    // Download daily file
+  server.on("/session-data", handleViewSessionData);    // View session data
+  server.on("/download-session", handleDownloadSession); // Download session file
+  server.on("/send-daily-report", handleSendDailyReport); // Send daily report manually
+  server.on("/send-session-data", handleSendSessionData); // Send session data manually
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -615,7 +691,7 @@ void handleRoot() {
     </div>
     
     <div style="text-align: center; margin-top: 30px; font-size: 0.9em; color: #7f8c8d;">
-      <p>📡 Network: )" + WiFi.SSID() + R" | 📍 IP: )" + WiFi.localIP().toString() + R"(</p>
+      <p>📡 Network: )" + WiFi.SSID() + R"( | 📍 IP: )" + WiFi.localIP().toString() + R"(</p>
       <p>⚡ Uptime: )" + String(millis() / 1000) + R"( seconds</p>
     </div>
   </div>
@@ -654,4 +730,589 @@ void handleDisableLogging() {
 
 void handleNotFound() {
   server.send(404, "text/plain", "404: Page Not Found");
+}
+
+// ============================================================================
+// DAILY FILE STORAGE & EMAIL FUNCTIONS
+// ============================================================================
+
+String getCurrentDate() {
+  // Simple date format: YYYY-MM-DD
+  // Note: ESP32 doesn't have RTC, so this is based on uptime
+  // In a real implementation, you'd sync with NTP server
+  unsigned long days = millis() / (24 * 60 * 60 * 1000);
+  return "2025-08-" + String(25 + days); // Starting from Aug 25, 2025
+}
+
+String getCurrentTime() {
+  unsigned long totalSeconds = millis() / 1000;
+  int hours = (totalSeconds / 3600) % 24;
+  int minutes = (totalSeconds / 60) % 60;
+  int seconds = totalSeconds % 60;
+  
+  char timeStr[9];
+  sprintf(timeStr, "%02d:%02d:%02d", hours, minutes, seconds);
+  return String(timeStr);
+}
+
+bool isMidnight() {
+  // Check if it's approximately midnight (00:00:xx)
+  unsigned long totalSeconds = millis() / 1000;
+  int hours = (totalSeconds / 3600) % 24;
+  int minutes = (totalSeconds / 60) % 60;
+  return (hours == 0 && minutes == 0);
+}
+
+void checkForMidnight() {
+  if (isMidnight() && !dailyReportSent) {
+    Serial.println("🌙 Midnight detected! Sending daily report...");
+    sendDailyReport();
+    dailyReportSent = true;
+    
+    // Reset session data for new day
+    clearSessionFile();
+    initializeSessionFile();
+  } else if (!isMidnight()) {
+    // Reset flag when not midnight
+    dailyReportSent = false;
+  }
+}
+
+void initializeDailyFile() {
+  Serial.println("📁 Initializing daily file system...");
+  
+  String today = getCurrentDate();
+  
+  // Check if we need to start a new daily file
+  if (currentDate != today) {
+    currentDate = today;
+    
+    // Create new daily file with header
+    File file = SPIFFS.open(DAILY_DATA_FILE, "w");
+    if (file) {
+      StaticJsonDocument<1024> doc;
+      doc["date"] = currentDate;
+      doc["node_id"] = "air_node_01";
+      doc["location"] = "Farm Insight Garden";
+      doc["start_time"] = getCurrentTime();
+      doc["readings"] = JsonArray();
+      
+      String jsonString;
+      serializeJson(doc, jsonString);
+      file.print(jsonString);
+      file.close();
+      
+      Serial.printf("📝 Created new daily file for %s\n", currentDate.c_str());
+    } else {
+      Serial.println("❌ Failed to create daily file");
+    }
+  }
+}
+
+void initializeSessionFile() {
+  Serial.println("📁 Initializing session file system...");
+  
+  // Check if session file exists, if not create it
+  if (!SPIFFS.exists(SESSION_DATA_FILE)) {
+    File file = SPIFFS.open(SESSION_DATA_FILE, "w");
+    if (file) {
+      StaticJsonDocument<1024> doc;
+      doc["last_reset"] = getCurrentDate();
+      doc["sessions"] = JsonArray();
+      
+      String jsonString;
+      serializeJson(doc, jsonString);
+      file.print(jsonString);
+      file.close();
+      
+      Serial.println("📝 Created new session file");
+    } else {
+      Serial.println("❌ Failed to create session file");
+    }
+  }
+  
+  // Add new session entry
+  File file = SPIFFS.open(SESSION_DATA_FILE, "r");
+  if (file) {
+    String fileContent = file.readString();
+    file.close();
+    
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, fileContent);
+    
+    if (!error) {
+      JsonObject newSession = doc["sessions"].createNestedObject();
+      newSession["session_start"] = getCurrentTime();
+      newSession["session_date"] = getCurrentDate();
+      newSession["readings"] = JsonArray();
+      
+      // Write back to file
+      file = SPIFFS.open(SESSION_DATA_FILE, "w");
+      if (file) {
+        String jsonString;
+        serializeJson(doc, jsonString);
+        file.print(jsonString);
+        file.close();
+        
+        Serial.printf("📝 Started new session at %s\n", getCurrentTime().c_str());
+      }
+    }
+  }
+}
+
+void saveSensorDataToDaily() {
+  File file = SPIFFS.open(DAILY_DATA_FILE, "r");
+  if (!file) {
+    Serial.println("❌ Cannot open daily file for reading");
+    return;
+  }
+  
+  // Read existing data
+  String fileContent = file.readString();
+  file.close();
+  
+  DynamicJsonDocument doc(8192); // Larger buffer for daily data
+  DeserializationError error = deserializeJson(doc, fileContent);
+  
+  if (error) {
+    Serial.println("❌ Failed to parse daily file JSON");
+    return;
+  }
+  
+  // Add new reading
+  JsonObject newReading = doc["readings"].createNestedObject();
+  newReading["time"] = getCurrentTime();
+  newReading["temp"] = currentSensors.temperature;
+  newReading["humidity"] = currentSensors.humidity;
+  newReading["airQuality"] = currentSensors.airQuality;
+  newReading["alcohol"] = currentSensors.alcohol;
+  newReading["smoke"] = currentSensors.smoke;
+  newReading["uptime"] = millis() / 1000;
+  
+  // Update metadata
+  doc["last_update"] = getCurrentTime();
+  doc["total_readings"] = doc["readings"].size();
+  
+  // Write back to file
+  file = SPIFFS.open(DAILY_DATA_FILE, "w");
+  if (file) {
+    String jsonString;
+    serializeJson(doc, jsonString);
+    file.print(jsonString);
+    file.close();
+    
+    Serial.printf("💾 Saved reading #%d to daily file\n", (int)doc["total_readings"]);
+  } else {
+    Serial.println("❌ Failed to write to daily file");
+  }
+}
+
+void saveSensorDataToSession() {
+  File file = SPIFFS.open(SESSION_DATA_FILE, "r");
+  if (!file) {
+    Serial.println("❌ Cannot open session file for reading");
+    return;
+  }
+  
+  // Read existing data
+  String fileContent = file.readString();
+  file.close();
+  
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, fileContent);
+  
+  if (error) {
+    Serial.println("❌ Failed to parse session file JSON");
+    return;
+  }
+  
+  // Get the last session (current session)
+  JsonArray sessions = doc["sessions"];
+  if (sessions.size() > 0) {
+    JsonObject currentSession = sessions[sessions.size() - 1];
+    JsonArray readings = currentSession["readings"];
+    
+    // Add new reading to current session
+    JsonObject newReading = readings.createNestedObject();
+    newReading["time"] = getCurrentTime();
+    newReading["temp"] = currentSensors.temperature;
+    newReading["humidity"] = currentSensors.humidity;
+    newReading["airQuality"] = currentSensors.airQuality;
+    newReading["alcohol"] = currentSensors.alcohol;
+    newReading["smoke"] = currentSensors.smoke;
+    newReading["uptime"] = millis() / 1000;
+    
+    // Update session metadata
+    currentSession["last_update"] = getCurrentTime();
+    currentSession["total_readings"] = readings.size();
+    
+    // Write back to file
+    file = SPIFFS.open(SESSION_DATA_FILE, "w");
+    if (file) {
+      String jsonString;
+      serializeJson(doc, jsonString);
+      file.print(jsonString);
+      file.close();
+      
+      Serial.printf("💾 Saved reading #%d to current session\n", (int)readings.size());
+    } else {
+      Serial.println("❌ Failed to write to session file");
+    }
+  }
+}
+
+void sendDailyReport() {
+  // Check if daily file exists and has data
+  File file = SPIFFS.open(DAILY_DATA_FILE, "r");
+  if (!file) {
+    Serial.println("📧 No daily file found for daily report");
+    return;
+  }
+  
+  String fileContent = file.readString();
+  file.close();
+  
+  if (fileContent.length() < 100) {
+    Serial.println("📧 Daily file too small, skipping daily report");
+    return;
+  }
+  
+  Serial.println("📧 Sending DAILY REPORT via email...");
+  
+  // Parse the data to get metadata
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, fileContent);
+  
+  String emailSubject = "📊 DAILY REPORT - Farm Insight Garden";
+  String emailBody = "Daily Report from your Farm Insight Garden Air Quality Node.\n\n";
+  emailBody += "This is your automatic midnight daily report.\n\n";
+  
+  if (!error) {
+    emailSubject += " (" + String(doc["date"].as<String>()) + ")";
+    emailBody += "Date: " + String(doc["date"].as<String>()) + "\n";
+    emailBody += "Node: " + String(doc["node_id"].as<String>()) + "\n";
+    emailBody += "Total Readings: " + String(doc["total_readings"].as<int>()) + "\n";
+    emailBody += "Report Time: " + getCurrentTime() + "\n\n";
+    
+    // Add summary statistics
+    JsonArray readings = doc["readings"];
+    if (readings.size() > 0) {
+      float avgTemp = 0, avgHumidity = 0;
+      int avgAirQuality = 0;
+      
+      for (JsonVariant reading : readings) {
+        avgTemp += reading["temp"].as<float>();
+        avgHumidity += reading["humidity"].as<float>();
+        avgAirQuality += reading["airQuality"].as<int>();
+      }
+      
+      int count = readings.size();
+      avgTemp /= count;
+      avgHumidity /= count;
+      avgAirQuality /= count;
+      
+      emailBody += "📈 DAILY SUMMARY:\n";
+      emailBody += "Average Temperature: " + String(avgTemp, 1) + "°C\n";
+      emailBody += "Average Humidity: " + String(avgHumidity, 0) + "%\n";
+      emailBody += "Average Air Quality: " + String(avgAirQuality) + "\n\n";
+    }
+  }
+  
+  emailBody += "Complete daily data is attached as JSON.\n\n";
+  emailBody += "Best regards,\nFarm Insight Garden System";
+  
+  // Send via HTTP POST to email service
+  HTTPClient http;
+  http.begin("https://api.emailjs.com/api/v1.0/email/send");
+  http.addHeader("Content-Type", "application/json");
+  
+  StaticJsonDocument<2048> emailDoc;
+  emailDoc["service_id"] = "service_farminsight";
+  emailDoc["template_id"] = "template_daily_report";
+  emailDoc["user_id"] = "your_emailjs_public_key";
+  
+  JsonObject templateParams = emailDoc.createNestedObject("template_params");
+  templateParams["to_email"] = RECIPIENT_EMAIL;
+  templateParams["subject"] = emailSubject;
+  templateParams["message"] = emailBody;
+  templateParams["json_data"] = fileContent;
+  templateParams["report_type"] = "DAILY_REPORT";
+  
+  String emailPayload;
+  serializeJson(emailDoc, emailPayload);
+  
+  int httpResponseCode = http.POST(emailPayload);
+  
+  if (httpResponseCode == 200) {
+    Serial.println("✅ Daily report sent successfully!");
+  } else {
+    Serial.printf("❌ Daily report failed with code: %d\n", httpResponseCode);
+  }
+  
+  http.end();
+}
+
+void sendLastSessionData() {
+  // Check if session file exists and has data
+  File file = SPIFFS.open(SESSION_DATA_FILE, "r");
+  if (!file) {
+    Serial.println("📧 No session file found for last session data");
+    return;
+  }
+  
+  String fileContent = file.readString();
+  file.close();
+  
+  if (fileContent.length() < 100) {
+    Serial.println("📧 Session file too small, skipping last session email");
+    return;
+  }
+  
+  Serial.println("📧 Sending LAST SESSION DATA via email...");
+  
+  // Parse the data to get metadata
+  DynamicJsonDocument doc(8192);
+  DeserializationError error = deserializeJson(doc, fileContent);
+  
+  String emailSubject = "🔄 LAST SESSION DATA - Farm Insight Garden";
+  String emailBody = "Last Session Data from your Farm Insight Garden Air Quality Node.\n\n";
+  emailBody += "This email contains all data collected since last midnight.\n\n";
+  
+  if (!error) {
+    JsonArray sessions = doc["sessions"];
+    emailSubject += " (Since " + String(doc["last_reset"].as<String>()) + ")";
+    emailBody += "Data Since: " + String(doc["last_reset"].as<String>()) + " 00:00\n";
+    emailBody += "Total Sessions: " + String(sessions.size()) + "\n";
+    emailBody += "ESP Startup Time: " + getCurrentTime() + "\n\n";
+    
+    // Add session summary
+    int totalReadings = 0;
+    emailBody += "📋 SESSION SUMMARY:\n";
+    
+    for (int i = 0; i < sessions.size(); i++) {
+      JsonObject session = sessions[i];
+      JsonArray readings = session["readings"];
+      totalReadings += readings.size();
+      
+      emailBody += "Session " + String(i + 1) + ": " + 
+                   String(session["session_start"].as<String>()) + " - " +
+                   String(session["last_update"].as<String>()) + 
+                   " (" + String(readings.size()) + " readings)\n";
+    }
+    
+    emailBody += "\nTotal Readings: " + String(totalReadings) + "\n\n";
+  }
+  
+  emailBody += "Complete session data is attached as JSON.\n\n";
+  emailBody += "Best regards,\nFarm Insight Garden System";
+  
+  // Send via HTTP POST to email service
+  HTTPClient http;
+  http.begin("https://api.emailjs.com/api/v1.0/email/send");
+  http.addHeader("Content-Type", "application/json");
+  
+  StaticJsonDocument<2048> emailDoc;
+  emailDoc["service_id"] = "service_farminsight";
+  emailDoc["template_id"] = "template_session_data";
+  emailDoc["user_id"] = "your_emailjs_public_key";
+  
+  JsonObject templateParams = emailDoc.createNestedObject("template_params");
+  templateParams["to_email"] = RECIPIENT_EMAIL;
+  templateParams["subject"] = emailSubject;
+  templateParams["message"] = emailBody;
+  templateParams["json_data"] = fileContent;
+  templateParams["report_type"] = "SESSION_DATA";
+  
+  String emailPayload;
+  serializeJson(emailDoc, emailPayload);
+  
+  int httpResponseCode = http.POST(emailPayload);
+  
+  if (httpResponseCode == 200) {
+    Serial.println("✅ Last session data sent successfully!");
+    
+    // Clear session data after successful email (keep only current session)
+    clearSessionFile();
+    initializeSessionFile();
+  } else {
+    Serial.printf("❌ Session data email failed with code: %d\n", httpResponseCode);
+  }
+  
+  http.end();
+}
+
+String loadDailyFile() {
+  File file = SPIFFS.open(DAILY_DATA_FILE, "r");
+  if (!file) {
+    return "{}";
+  }
+  
+  String content = file.readString();
+  file.close();
+  return content;
+}
+
+String loadSessionFile() {
+  File file = SPIFFS.open(SESSION_DATA_FILE, "r");
+  if (!file) {
+    return "{}";
+  }
+  
+  String content = file.readString();
+  file.close();
+  return content;
+}
+
+void clearDailyFile() {
+  if (SPIFFS.remove(DAILY_DATA_FILE)) {
+    Serial.println("🗑️  Daily file cleared");
+  } else {
+    Serial.println("❌ Failed to clear daily file");
+  }
+}
+
+void clearSessionFile() {
+  if (SPIFFS.remove(SESSION_DATA_FILE)) {
+    Serial.println("🗑️  Session file cleared");
+  } else {
+    Serial.println("❌ Failed to clear session file");
+  }
+}
+
+// ============================================================================
+// NEW WEB HANDLERS FOR DAILY AND SESSION DATA
+// ============================================================================
+
+void handleViewDailyData() {
+  String jsonData = loadDailyFile();
+  
+  String html = R"(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📊 Daily Sensor Data</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    .container { background: white; padding: 20px; border-radius: 10px; max-width: 800px; margin: auto; }
+    pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    .btn { background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; }
+    .btn.daily { background: #28a745; }
+    .btn.session { background: #17a2b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 Daily Sensor Data</h1>
+    <p><strong>Current Date:</strong> )" + getCurrentDate() + R"(</p>
+    <p><strong>Current Time:</strong> )" + getCurrentTime() + R"(</p>
+    
+    <div>
+      <a href="/download-daily" class="btn daily">📥 Download Daily JSON</a>
+      <a href="/send-daily-report" class="btn daily">📧 Send Daily Report</a>
+      <a href="/session-data" class="btn session">🔄 View Session Data</a>
+      <a href="/" class="btn">🏠 Home</a>
+    </div>
+    
+    <h3>📋 Daily JSON Data:</h3>
+    <pre>)" + jsonData + R"(</pre>
+  </div>
+</body>
+</html>)";
+
+  server.send(200, "text/html", html);
+}
+
+void handleViewSessionData() {
+  String jsonData = loadSessionFile();
+  
+  String html = R"(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🔄 Session Data</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    .container { background: white; padding: 20px; border-radius: 10px; max-width: 800px; margin: auto; }
+    pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    .btn { background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; }
+    .btn.daily { background: #28a745; }
+    .btn.session { background: #17a2b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 Session Data (Since Last Midnight)</h1>
+    <p><strong>Current Date:</strong> )" + getCurrentDate() + R"(</p>
+    <p><strong>Current Time:</strong> )" + getCurrentTime() + R"(</p>
+    
+    <div>
+      <a href="/download-session" class="btn session">📥 Download Session JSON</a>
+      <a href="/send-session-data" class="btn session">📧 Send Session Data</a>
+      <a href="/daily-data" class="btn daily">📊 View Daily Data</a>
+      <a href="/" class="btn">🏠 Home</a>
+    </div>
+    
+    <h3>📋 Session JSON Data:</h3>
+    <pre>)" + jsonData + R"(</pre>
+  </div>
+</body>
+</html>)";
+
+  server.send(200, "text/html", html);
+}
+
+void handleDownloadDaily() {
+  String jsonData = loadDailyFile();
+  String filename = "daily_sensor_data_" + getCurrentDate() + ".json";
+  
+  server.sendHeader("Content-Disposition", "attachment; filename=" + filename);
+  server.send(200, "application/json", jsonData);
+}
+
+void handleDownloadSession() {
+  String jsonData = loadSessionFile();
+  String filename = "session_data_" + getCurrentDate() + ".json";
+  
+  server.sendHeader("Content-Disposition", "attachment; filename=" + filename);
+  server.send(200, "application/json", jsonData);
+}
+
+void handleSendDailyReport() {
+  sendDailyReport();
+  
+  String html = R"(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📊 Daily Report Sent</title>
+  <meta http-equiv="refresh" content="3;url=/daily-data">
+</head>
+<body>
+  <h1>� Daily Report Sent!</h1>
+  <p>Daily report has been sent to Aniketsadakale1014@gmail.com</p>
+  <p>Redirecting to daily data in 3 seconds...</p>
+</body>
+</html>)";
+
+  server.send(200, "text/html", html);
+}
+
+void handleSendSessionData() {
+  sendLastSessionData();
+  
+  String html = R"(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🔄 Session Data Sent</title>
+  <meta http-equiv="refresh" content="3;url=/session-data">
+</head>
+<body>
+  <h1>🔄 Session Data Sent!</h1>
+  <p>Last session data has been sent to Aniketsadakale1014@gmail.com</p>
+  <p>Redirecting to session data in 3 seconds...</p>
+</body>
+</html>)";
+
+  server.send(200, "text/html", html);
 }

@@ -14,11 +14,31 @@ export interface SensorThreshold {
   high: number;
   unit: string;
   label: string;
-  icon: React.ReactNode;
+  icon: string; // Changed from React.ReactNode to string
   min: number;
   max: number;
   step: number;
 }
+
+// Helper function to render icons
+const getIcon = (iconName: string) => {
+  switch (iconName) {
+    case 'thermometer':
+      return <Thermometer className="h-4 w-4" />;
+    case 'droplets':
+      return <Droplets className="h-4 w-4" />;
+    case 'wind':
+      return <Wind className="h-4 w-4" />;
+    case 'flame':
+      return <Flame className="h-4 w-4" />;
+    case 'treepine':
+      return <TreePine className="h-4 w-4" />;
+    case 'activity':
+      return <Activity className="h-4 w-4" />;
+    default:
+      return <Activity className="h-4 w-4" />;
+  }
+};
 
 // Default threshold values based on current system
 export const DEFAULT_THRESHOLDS = {
@@ -27,7 +47,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 32,
     unit: "°C",
     label: "Air Temperature",
-    icon: <Thermometer className="h-4 w-4" />,
+    icon: "thermometer",
     min: 0,
     max: 50,
     step: 0.5
@@ -37,7 +57,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 80,
     unit: "%",
     label: "Air Humidity",
-    icon: <Droplets className="h-4 w-4" />,
+    icon: "droplets",
     min: 0,
     max: 100,
     step: 1
@@ -47,7 +67,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 3000,
     unit: "ppm",
     label: "Air Quality (MQ135)",
-    icon: <Wind className="h-4 w-4" />,
+    icon: "wind",
     min: 0,
     max: 5000,
     step: 50
@@ -57,7 +77,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 1200,
     unit: "ppm",
     label: "Alcohol (MQ3)",
-    icon: <Activity className="h-4 w-4" />,
+    icon: "activity",
     min: 0,
     max: 3000,
     step: 50
@@ -67,7 +87,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 2200,
     unit: "ppm",
     label: "Smoke (MQ2)",
-    icon: <Flame className="h-4 w-4" />,
+    icon: "flame",
     min: 0,
     max: 4000,
     step: 50
@@ -77,7 +97,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 32,
     unit: "°C",
     label: "Soil Temperature",
-    icon: <Thermometer className="h-4 w-4" />,
+    icon: "thermometer",
     min: 0,
     max: 50,
     step: 0.5
@@ -87,7 +107,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 80,
     unit: "%",
     label: "Soil Humidity",
-    icon: <Droplets className="h-4 w-4" />,
+    icon: "droplets",
     min: 0,
     max: 100,
     step: 1
@@ -97,7 +117,7 @@ export const DEFAULT_THRESHOLDS = {
     high: 75,
     unit: "%",
     label: "Soil Moisture",
-    icon: <TreePine className="h-4 w-4" />,
+    icon: "treepine",
     min: 0,
     max: 100,
     step: 1
@@ -198,7 +218,7 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
     return (
       <Card key={sensorKey} className="p-4 bg-card border-border">
         <div className="flex items-center gap-2 mb-4">
-          {threshold.icon}
+          {getIcon(threshold.icon)}
           <h3 className="font-medium text-foreground">{threshold.label}</h3>
           <Badge variant="outline" className="ml-auto border-border text-muted-foreground">
             {threshold.unit}
