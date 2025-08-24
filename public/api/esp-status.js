@@ -1,35 +1,47 @@
-// Simple API endpoint to provide ESP connection status
-// This file will be served by the web server and provide status to ESP nodes
+// ESP Status API - Returns current data collection status for ESP nodes
+// This endpoint is polled by ESP nodes to determine whether to send data to database
 
-// Check localStorage for connection status (this will be accessible when served as static content)
 const checkConnectionStatus = () => {
   try {
-    // This would be read from backend storage or configuration
-    // For simplicity, we'll return enabled by default
-    // In production, this should check a database or configuration file
-    return { 
-      enabled: true, 
+    // Try to read from the status file first (updated by the dashboard)
+    const statusFile = '../esp-connection-status.json';
+    
+    // Default status (fallback if file read fails)
+    let status = {
+      esp_connection_enabled: false,
+      data_collection_enabled: false,
+      collection_mode: "stopped",
       timestamp: new Date().toISOString(),
-      message: "ESP connection is enabled"
+      message: "Data collection stopped - ESP nodes should not send data to database"
     };
+    
+    // In a real server environment, you would read the JSON file here
+    // For static serving, the ESP nodes should poll the JSON file directly
+    // This script serves as a backup/alternative endpoint
+    
+    return status;
   } catch (error) {
-    return { 
-      enabled: false, 
+    return {
+      esp_connection_enabled: false,
+      data_collection_enabled: false,
+      collection_mode: "stopped",
       timestamp: new Date().toISOString(),
-      message: "Error checking connection status"
+      message: "Error checking connection status - defaulting to stopped"
     };
   }
 };
 
-// If this is being called as an API endpoint
+// Export for Node.js environments
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = checkConnectionStatus;
 } else {
-  // If called directly in browser context
+  // Browser environment - display JSON status
   document.addEventListener('DOMContentLoaded', () => {
     const status = checkConnectionStatus();
-    document.body.innerHTML = JSON.stringify(status);
+    document.body.innerHTML = JSON.stringify(status, null, 2);
     document.body.style.fontFamily = 'monospace';
     document.body.style.whiteSpace = 'pre-wrap';
+    document.body.style.backgroundColor = '#f5f5f5';
+    document.body.style.padding = '20px';
   });
 }

@@ -2,6 +2,6 @@
   "esp_connection_enabled": false,
   "data_collection_enabled": false,
   "collection_mode": "stopped",
-  "timestamp": "2025-01-24T00:00:00.000Z",
+  "timestamp": "2025-08-24T19:12:52.962Z",
   "message": "Data collection stopped - ESP nodes should not send data to database"
 }

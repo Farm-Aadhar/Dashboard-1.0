@@ -12,8 +12,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Database, Play, Square, RotateCcw } from "lucide-react";
+import { Settings, Database, Play, Square } from "lucide-react";
 import { ThresholdSettings } from "@/components/settings/ThresholdSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 // =========================
 // ⚠️ Replace this in production: call your own /api endpoint instead.
@@ -178,7 +179,7 @@ export function SimulationController() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [running, setRunning] = useState(false);
   const [espConnectionEnabled, setEspConnectionEnabled] = useState(false);
-  const [dataCollectionMode, setDataCollectionMode] = useState<'stopped' | 'collecting' | 'continuous'>('stopped');
+  const [isCollectionActive, setIsCollectionActive] = useState(false); // Simplified to boolean
   const timeRef = useRef(0);
   const { toast } = useToast();
 
@@ -217,12 +218,18 @@ export function SimulationController() {
     try {
       const collectionMode = localStorage.getItem('data_collection_mode');
       if (collectionMode) {
-        setDataCollectionMode(collectionMode as 'stopped' | 'collecting' | 'continuous');
+        setIsCollectionActive(collectionMode === 'collecting' || collectionMode === 'continuous');
       }
     } catch {}
   }, []);
 
   const sendData = async (timeInSeconds: number) => {
+    // Check if data collection is stopped - don't send simulation data either
+    if (!isCollectionActive) {
+      console.log('Simulation data blocked - collection is stopped');
+      return;
+    }
+    
     const mockData = generateMockDataWithTrend(timeInSeconds, spikeChance, spikeIntensity);
     try {
       await axios.post(API_ENDPOINT, mockData, { headers: API_HEADERS });
@@ -235,94 +242,96 @@ export function SimulationController() {
     }
   };
 
-  const updateDataCollectionStatus = async (mode: 'stopped' | 'collecting' | 'continuous') => {
-    setDataCollectionMode(mode);
-    localStorage.setItem('data_collection_mode', mode);
-    
-    // Update status for ESP nodes and database
-    const statusData = {
-      data_collection_enabled: mode !== 'stopped',
-      collection_mode: mode,
-      esp_connection_enabled: mode !== 'stopped',
-      timestamp: new Date().toISOString(),
-      message: mode === 'stopped' 
-        ? "Data collection stopped - ESP nodes should not send data to database"
-        : mode === 'collecting'
-        ? "Data collection active - ESP nodes should send data to database"
-        : "Continuous data collection - ESP nodes should continuously send data to database"
-    };
-    
-    // Update the status file for ESP nodes to poll
+  const toggleDataCollection = async () => {
     try {
-      const response = await fetch('/esp-connection-status.json', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(statusData),
+      const newState = !isCollectionActive;
+      setIsCollectionActive(newState);
+      
+      // Convert boolean to database mode
+      const mode = newState ? 'collecting' : 'stopped';
+      localStorage.setItem('data_collection_mode', mode);
+      
+      // Call the database function to update collection mode
+      // @ts-ignore - Function will be available after running database migration
+      const { data, error } = await supabase.rpc('update_collection_mode', {
+        new_mode: mode,
+        user_notes: `Collection ${newState ? 'enabled' : 'disabled'} via dashboard toggle`
+      });
+
+      if (error) {
+        console.error('Database collection control error:', error);
+        throw error;
+      }
+
+      // Show user feedback
+      const message = newState
+        ? {
+            title: "✅ Data Collection ACTIVE",
+            description: "Database is accepting ESP sensor data",
+            variant: "default" as const
+          }
+        : {
+            title: "� Data Collection STOPPED",
+            description: "Database will reject all incoming ESP sensor data",
+            variant: "destructive" as const
+          };
+      
+      toast(message);
+      
+      console.log(`Database collection ${newState ? 'enabled' : 'disabled'}`);
+      console.log(`Database function returned:`, data);
+      
+    } catch (error) {
+      console.error('Failed to update database collection mode:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update database collection settings",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const testDatabaseCollection = async () => {
+    try {
+      // Get current collection status from database
+      // @ts-ignore - Function will be available after running database migration
+      const { data, error } = await supabase.rpc('get_collection_status');
+      
+      if (error) {
+        throw error;
+      }
+      
+      // @ts-ignore - Data structure will be defined after migration
+      const status = data?.[0];
+      if (!status) {
+        throw new Error('No collection status found');
+      }
+      
+      const statusMessage = status.collection_enabled 
+        ? `✅ Database Collection: ENABLED (${status.collection_mode})`
+        : `❌ Database Collection: DISABLED (${status.collection_mode})`;
+        
+      toast({
+        title: "Database Collection Status",
+        description: statusMessage,
+        variant: status.collection_enabled ? "default" : "destructive"
       });
       
-      if (!response.ok) {
-        console.log('Could not update status file via API, ESP will use local polling');
-      }
-    } catch (error) {
-      console.log('Status file update failed, ESP will use local polling:', error);
-    }
-    
-    // Also update localStorage for immediate access
-    localStorage.setItem('esp_connection_enabled', JSON.stringify(mode !== 'stopped'));
-    setEspConnectionEnabled(mode !== 'stopped');
-    
-    // Try to communicate directly with ESP nodes
-    try {
-      const endpoint = mode === 'stopped' ? 'disable-logging' : 'enable-logging';
-      const responses = await Promise.allSettled([
-        fetch(`http://air-node.local/${endpoint}`).then(r => r.ok ? 'air-node' : null),
-        fetch(`http://soil-node.local/${endpoint}`).then(r => r.ok ? 'soil-node' : null)
-      ]);
+      console.log('Current database collection status:', status);
       
-      const successful = responses
-        .filter(result => result.status === 'fulfilled' && result.value)
-        .map(result => (result as any).value);
-      
-      if (successful.length > 0) {
-        const action = mode === 'stopped' ? 'disabled' : 'enabled';
-        toast({
-          title: `Data Collection ${action.charAt(0).toUpperCase() + action.slice(1)}`,
-          description: `Successfully ${action} data logging on: ${successful.join(', ')}`,
-          variant: "default"
-        });
-      }
     } catch (error) {
-      console.log('ESP nodes not reachable via local network, they will check status via polling');
+      console.error('Failed to check database collection status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check database collection status",
+        variant: "destructive"
+      });
     }
-    
-    // Show user feedback
-    const messages = {
-      stopped: {
-        title: "Data Collection Stopped",
-        description: "ESP nodes will stop sending data to the database. This saves database storage.",
-        variant: "default" as const
-      },
-      collecting: {
-        title: "Data Collection Started", 
-        description: "ESP nodes are now sending data to the database.",
-        variant: "default" as const
-      },
-      continuous: {
-        title: "Continuous Collection Enabled",
-        description: "ESP nodes will continuously collect and send data until manually stopped.",
-        variant: "default" as const
-      }
-    };
-    
-    toast(messages[mode]);
   };
 
   const toggleEspConnection = async () => {
-    // Legacy function - now redirects to the new system
-    const newMode = espConnectionEnabled ? 'stopped' : 'continuous';
-    await updateDataCollectionStatus(newMode);
+    // Legacy function - now redirects to the new toggle system
+    await toggleDataCollection();
   };
 
   const toggleSimulation = () => {
@@ -403,35 +412,16 @@ export function SimulationController() {
         {running ? "Stop Simulation" : "Start Simulation"}
       </Button>
 
-      {/* Data Collection Control Dropdown */}
-      <Select value={dataCollectionMode} onValueChange={(value: 'stopped' | 'collecting' | 'continuous') => updateDataCollectionStatus(value)}>
-        <SelectTrigger className="w-40">
-          <div className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            <SelectValue />
-          </div>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="stopped">
-            <div className="flex items-center gap-2">
-              <Square className="h-4 w-4 text-red-600" />
-              <span>Stopped</span>
-            </div>
-          </SelectItem>
-          <SelectItem value="collecting">
-            <div className="flex items-center gap-2">
-              <Play className="h-4 w-4 text-blue-600" />
-              <span>Collecting</span>
-            </div>
-          </SelectItem>
-          <SelectItem value="continuous">
-            <div className="flex items-center gap-2">
-              <RotateCcw className="h-4 w-4 text-green-600" />
-              <span>Continuous</span>
-            </div>
-          </SelectItem>
-        </SelectContent>
-      </Select>
+      {/* Data Collection Toggle Button */}
+      <Button 
+        variant={isCollectionActive ? "destructive" : "default"} 
+        size="sm" 
+        onClick={toggleDataCollection}
+        className="min-w-[160px]"
+      >
+        <Database className="h-4 w-4 mr-2" />
+        {isCollectionActive ? "Stop Collection" : "Start Collection"}
+      </Button>
 
       <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
         <Settings className="h-4 w-4" />
@@ -558,21 +548,23 @@ export function SimulationController() {
 
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Data Collection Mode</h3>
+                  <h3 className="text-sm font-semibold">Data Collection Control</h3>
                   
                   <div className="grid gap-3">
                     <div 
                       className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                        dataCollectionMode === 'stopped' 
+                        !isCollectionActive 
                           ? 'border-red-300 bg-red-50 dark:bg-red-900/20' 
                           : 'border-border hover:border-red-300'
                       }`}
-                      onClick={() => updateDataCollectionStatus('stopped')}
+                      onClick={() => toggleDataCollection()}
                     >
                       <div className="flex items-center gap-3">
                         <Square className="h-5 w-5 text-red-600" />
                         <div>
-                          <h4 className="font-medium text-red-700 dark:text-red-300">Stop Data Collection</h4>
+                          <h4 className="font-medium text-red-700 dark:text-red-300">
+                            {isCollectionActive ? "Stop Collection" : "✅ Collection Stopped"}
+                          </h4>
                           <p className="text-xs text-red-600 dark:text-red-400">
                             ESP nodes will not send any data to database. Saves storage space.
                           </p>
@@ -582,37 +574,20 @@ export function SimulationController() {
 
                     <div 
                       className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                        dataCollectionMode === 'collecting' 
-                          ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20' 
-                          : 'border-border hover:border-blue-300'
-                      }`}
-                      onClick={() => updateDataCollectionStatus('collecting')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Play className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <h4 className="font-medium text-blue-700 dark:text-blue-300">Collect Data Now</h4>
-                          <p className="text-xs text-blue-600 dark:text-blue-400">
-                            Start collecting data immediately. Good for testing or short-term monitoring.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div 
-                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                        dataCollectionMode === 'continuous' 
+                        isCollectionActive 
                           ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
                           : 'border-border hover:border-green-300'
                       }`}
-                      onClick={() => updateDataCollectionStatus('continuous')}
+                      onClick={() => toggleDataCollection()}
                     >
                       <div className="flex items-center gap-3">
-                        <RotateCcw className="h-5 w-5 text-green-600" />
+                        <Play className="h-5 w-5 text-green-600" />
                         <div>
-                          <h4 className="font-medium text-green-700 dark:text-green-300">Continuous Collection</h4>
+                          <h4 className="font-medium text-green-700 dark:text-green-300">
+                            {!isCollectionActive ? "Start Collection" : "✅ Collection Active"}
+                          </h4>
                           <p className="text-xs text-green-600 dark:text-green-400">
-                            Keep collecting data until manually stopped. Best for long-term monitoring.
+                            ESP nodes will send data to database normally for monitoring.
                           </p>
                         </div>
                       </div>
@@ -626,14 +601,28 @@ export function SimulationController() {
                     <Database className="h-5 w-5" />
                     <div>
                       <p className="font-medium">
-                        {dataCollectionMode === 'stopped' && "Data collection is stopped"}
-                        {dataCollectionMode === 'collecting' && "Currently collecting data"}
-                        {dataCollectionMode === 'continuous' && "Continuous data collection active"}
+                        {isCollectionActive ? "Data collection is active" : "Data collection is stopped"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        ESP nodes will {dataCollectionMode === 'stopped' ? 'not send' : 'send'} data to the database
+                        ESP nodes will {isCollectionActive ? 'send' : 'not send'} data to the database
                       </p>
                     </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold mb-3">Collection Status Test</h3>
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      Check the current collection status and verify simulation respects the setting
+                    </p>
+                    <Button 
+                      onClick={testDatabaseCollection}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Check Collection Status
+                    </Button>
                   </div>
                 </div>
 
@@ -642,7 +631,7 @@ export function SimulationController() {
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>• ESP nodes check the status every 30 seconds</p>
                     <p>• Changes take effect within 30 seconds on ESP nodes</p>
-                    <p>• Local network commands are sent immediately when possible</p>
+                    <p>• Database trigger blocks inserts immediately when stopped</p>
                   </div>
                 </div>
               </div>

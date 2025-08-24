@@ -390,34 +390,39 @@ void checkDashboardConnectionStatus() {
   }
 
   HTTPClient http;
-  // Try multiple possible dashboard URLs
+  // Check the actual dashboard development server where the status file is hosted
   String dashboardURLs[] = {
-    "http://192.168.1.100:5173/esp-connection-status.json",  // Adjust IP as needed
-    "http://localhost:5173/esp-connection-status.json",
-    "http://farm-dashboard.local:5173/esp-connection-status.json"
+    "http://192.168.1.156:8081/esp-connection-status.json",  // Your development server
+    "http://192.168.1.156:8080/esp-connection-status.json",  // Alternative port
+    "http://localhost:8081/esp-connection-status.json",      // Local fallback
+    "http://localhost:8080/esp-connection-status.json"       // Alternative local
   };
   
   bool statusFound = false;
   
-  for (int i = 0; i < 3 && !statusFound; i++) {
+  for (int i = 0; i < 4 && !statusFound; i++) {
+    Serial.printf("Checking dashboard status at: %s\n", dashboardURLs[i].c_str());
     http.begin(dashboardURLs[i]);
-    http.setTimeout(3000); // 3 second timeout
+    http.setTimeout(5000); // 5 second timeout
     
     int httpResponseCode = http.GET();
     
     if (httpResponseCode == 200) {
       String payload = http.getString();
+      Serial.printf("Received status payload: %s\n", payload.c_str());
       
-      // Simple JSON parsing - look for "esp_connection_enabled":true/false
-      if (payload.indexOf("\"esp_connection_enabled\":true") != -1) {
+      // Parse JSON - look for "data_collection_enabled":true/false
+      if (payload.indexOf("\"data_collection_enabled\":true") != -1) {
         dashboardConnectionEnabled = true;
         statusFound = true;
-        Serial.println("Dashboard connection status: ENABLED");
-      } else if (payload.indexOf("\"esp_connection_enabled\":false") != -1) {
+        Serial.println("✅ Dashboard: DATA COLLECTION ENABLED");
+      } else if (payload.indexOf("\"data_collection_enabled\":false") != -1) {
         dashboardConnectionEnabled = false;
         statusFound = true;
-        Serial.println("Dashboard connection status: DISABLED");
+        Serial.println("❌ Dashboard: DATA COLLECTION DISABLED");
       }
+    } else {
+      Serial.printf("HTTP request failed with code: %d\n", httpResponseCode);
     }
     
     http.end();
@@ -426,7 +431,7 @@ void checkDashboardConnectionStatus() {
   if (!statusFound) {
     // If we can't reach any dashboard, assume connection is enabled (fail-safe)
     dashboardConnectionEnabled = true;
-    Serial.println("Failed to check dashboard status, defaulting to ENABLED");
+    Serial.println("⚠️  Failed to check dashboard status, defaulting to ENABLED");
   }
 }
 
