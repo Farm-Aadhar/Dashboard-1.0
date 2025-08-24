@@ -9,8 +9,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
-import { Settings } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Settings, Database, Play, Square, RotateCcw } from "lucide-react";
+import { ThresholdSettings } from "@/components/settings/ThresholdSettings";
 
 // =========================
 // ⚠️ Replace this in production: call your own /api endpoint instead.
@@ -175,6 +178,7 @@ export function SimulationController() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [running, setRunning] = useState(false);
   const [espConnectionEnabled, setEspConnectionEnabled] = useState(false);
+  const [dataCollectionMode, setDataCollectionMode] = useState<'stopped' | 'collecting' | 'continuous'>('stopped');
   const timeRef = useRef(0);
   const { toast } = useToast();
 
@@ -208,6 +212,14 @@ export function SimulationController() {
         setEspConnectionEnabled(JSON.parse(espState));
       }
     } catch {}
+    
+    // Load data collection mode
+    try {
+      const collectionMode = localStorage.getItem('data_collection_mode');
+      if (collectionMode) {
+        setDataCollectionMode(collectionMode as 'stopped' | 'collecting' | 'continuous');
+      }
+    } catch {}
   }, []);
 
   const sendData = async (timeInSeconds: number) => {
@@ -223,23 +235,24 @@ export function SimulationController() {
     }
   };
 
-  const toggleEspConnection = async () => {
-    const newState = !espConnectionEnabled;
-    setEspConnectionEnabled(newState);
+  const updateDataCollectionStatus = async (mode: 'stopped' | 'collecting' | 'continuous') => {
+    setDataCollectionMode(mode);
+    localStorage.setItem('data_collection_mode', mode);
     
-    // Store the state in localStorage for ESP nodes to check
-    localStorage.setItem('esp_connection_enabled', JSON.stringify(newState));
-    
-    // Update the public JSON file that ESP nodes can poll
+    // Update status for ESP nodes and database
     const statusData = {
-      esp_connection_enabled: newState,
+      data_collection_enabled: mode !== 'stopped',
+      collection_mode: mode,
+      esp_connection_enabled: mode !== 'stopped',
       timestamp: new Date().toISOString(),
-      message: newState 
-        ? "ESP nodes are allowed to send data" 
-        : "ESP nodes should stop sending data"
+      message: mode === 'stopped' 
+        ? "Data collection stopped - ESP nodes should not send data to database"
+        : mode === 'collecting'
+        ? "Data collection active - ESP nodes should send data to database"
+        : "Continuous data collection - ESP nodes should continuously send data to database"
     };
     
-    // Update the JSON file via fetch (this will work when served by the dev server)
+    // Update the status file for ESP nodes to poll
     try {
       const response = await fetch('/esp-connection-status.json', {
         method: 'PUT',
@@ -256,63 +269,60 @@ export function SimulationController() {
       console.log('Status file update failed, ESP will use local polling:', error);
     }
     
-    if (newState) {
-      toast({
-        title: "ESP Connection Enabled",
-        description: "ESP nodes can now send data to the database.",
-        variant: "default"
-      });
+    // Also update localStorage for immediate access
+    localStorage.setItem('esp_connection_enabled', JSON.stringify(mode !== 'stopped'));
+    setEspConnectionEnabled(mode !== 'stopped');
+    
+    // Try to communicate directly with ESP nodes
+    try {
+      const endpoint = mode === 'stopped' ? 'disable-logging' : 'enable-logging';
+      const responses = await Promise.allSettled([
+        fetch(`http://air-node.local/${endpoint}`).then(r => r.ok ? 'air-node' : null),
+        fetch(`http://soil-node.local/${endpoint}`).then(r => r.ok ? 'soil-node' : null)
+      ]);
       
-      // Try to enable logging on ESP nodes
-      try {
-        const responses = await Promise.allSettled([
-          fetch('http://air-node.local/enable-logging').then(r => r.ok ? 'air-node' : null),
-          fetch('http://soil-node.local/enable-logging').then(r => r.ok ? 'soil-node' : null)
-        ]);
-        
-        const successful = responses
-          .filter(result => result.status === 'fulfilled' && result.value)
-          .map(result => (result as any).value);
-        
-        if (successful.length > 0) {
-          toast({
-            title: "ESP Nodes Connected",
-            description: `Successfully enabled data logging on: ${successful.join(', ')}`,
-            variant: "default"
-          });
-        }
-      } catch (error) {
-        console.log('ESP nodes not reachable via local network, they will check status via polling');
-      }
-    } else {
-      toast({
-        title: "ESP Connection Disabled",
-        description: "ESP nodes will stop sending data to the database.",
-        variant: "default"
-      });
+      const successful = responses
+        .filter(result => result.status === 'fulfilled' && result.value)
+        .map(result => (result as any).value);
       
-      // Try to disable logging on ESP nodes
-      try {
-        const responses = await Promise.allSettled([
-          fetch('http://air-node.local/disable-logging').then(r => r.ok ? 'air-node' : null),
-          fetch('http://soil-node.local/disable-logging').then(r => r.ok ? 'soil-node' : null)
-        ]);
-        
-        const successful = responses
-          .filter(result => result.status === 'fulfilled' && result.value)
-          .map(result => (result as any).value);
-        
-        if (successful.length > 0) {
-          toast({
-            title: "ESP Nodes Disconnected",
-            description: `Successfully disabled data logging on: ${successful.join(', ')}`,
-            variant: "default"
-          });
-        }
-      } catch (error) {
-        console.log('ESP nodes not reachable via local network, they will check status via polling');
+      if (successful.length > 0) {
+        const action = mode === 'stopped' ? 'disabled' : 'enabled';
+        toast({
+          title: `Data Collection ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+          description: `Successfully ${action} data logging on: ${successful.join(', ')}`,
+          variant: "default"
+        });
       }
+    } catch (error) {
+      console.log('ESP nodes not reachable via local network, they will check status via polling');
     }
+    
+    // Show user feedback
+    const messages = {
+      stopped: {
+        title: "Data Collection Stopped",
+        description: "ESP nodes will stop sending data to the database. This saves database storage.",
+        variant: "default" as const
+      },
+      collecting: {
+        title: "Data Collection Started", 
+        description: "ESP nodes are now sending data to the database.",
+        variant: "default" as const
+      },
+      continuous: {
+        title: "Continuous Collection Enabled",
+        description: "ESP nodes will continuously collect and send data until manually stopped.",
+        variant: "default" as const
+      }
+    };
+    
+    toast(messages[mode]);
+  };
+
+  const toggleEspConnection = async () => {
+    // Legacy function - now redirects to the new system
+    const newMode = espConnectionEnabled ? 'stopped' : 'continuous';
+    await updateDataCollectionStatus(newMode);
   };
 
   const toggleSimulation = () => {
@@ -388,117 +398,256 @@ export function SimulationController() {
   };
 
   return (
-    <div className="flex gap-2">
-
+    <div className="flex gap-2 flex-wrap">
       <Button variant="outline" size="sm" onClick={toggleSimulation}>
         {running ? "Stop Simulation" : "Start Simulation"}
       </Button>
 
-      <Button 
-        variant="outline" 
-        size="sm" 
-        onClick={toggleEspConnection}
-        className={espConnectionEnabled ? "bg-green-100 border-green-300 text-green-800" : ""}
-      >
-        {espConnectionEnabled ? "Stop ESP Connection" : "Start ESP Connection"}
-      </Button>
+      {/* Data Collection Control Dropdown */}
+      <Select value={dataCollectionMode} onValueChange={(value: 'stopped' | 'collecting' | 'continuous') => updateDataCollectionStatus(value)}>
+        <SelectTrigger className="w-40">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            <SelectValue />
+          </div>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="stopped">
+            <div className="flex items-center gap-2">
+              <Square className="h-4 w-4 text-red-600" />
+              <span>Stopped</span>
+            </div>
+          </SelectItem>
+          <SelectItem value="collecting">
+            <div className="flex items-center gap-2">
+              <Play className="h-4 w-4 text-blue-600" />
+              <span>Collecting</span>
+            </div>
+          </SelectItem>
+          <SelectItem value="continuous">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-green-600" />
+              <span>Continuous</span>
+            </div>
+          </SelectItem>
+        </SelectContent>
+      </Select>
 
       <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
-        <Settings/>
+        <Settings className="h-4 w-4" />
       </Button>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-3xl  overflow-y-scroll h-screen custom-scroll">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Simulation Settings</DialogTitle>
-            <div className="text-sm text-muted-foreground mt-2 p-3 bg-muted/30 rounded-lg">
-              <p className="font-medium mb-1">How simulation works:</p>
-              <ul className="text-xs space-y-1">
-                <li>• <strong>1x = Normal</strong> polyhouse conditions with natural fluctuations</li>
-                <li>• <strong>0.5x = Half</strong> the normal values (e.g., cooler temperature)</li>
-                <li>• <strong>2x = Double</strong> the normal values (e.g., hotter temperature)</li>
-                <li>• Values include daily cycles and small random variations</li>
-              </ul>
-            </div>
+            <DialogTitle>Farm Settings</DialogTitle>
           </DialogHeader>
 
-          {/* Air */}
-          <div className="mt-4">
-            <h3 className="text-sm font-semibold mb-2">Air Sensors</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {renderSlider("air_temperature", "Temperature", tempSensitivity.air_temperature, (v) =>
-                setTempSensitivity({ ...tempSensitivity, air_temperature: v })
-              )}
-              {renderSlider("air_humidity", "Humidity", tempSensitivity.air_humidity, (v) =>
-                setTempSensitivity({ ...tempSensitivity, air_humidity: v })
-              )}
-              {renderSlider("air_air_quality_mq135", "Air Quality (MQ135)", tempSensitivity.air_air_quality_mq135, (v) =>
-                setTempSensitivity({ ...tempSensitivity, air_air_quality_mq135: v })
-              )}
-              {renderSlider("air_alcohol_mq3", "Alcohol (MQ3)", tempSensitivity.air_alcohol_mq3, (v) =>
-                setTempSensitivity({ ...tempSensitivity, air_alcohol_mq3: v })
-              )}
-              {renderSlider("air_smoke_mq2", "Smoke (MQ2)", tempSensitivity.air_smoke_mq2, (v) =>
-                setTempSensitivity({ ...tempSensitivity, air_smoke_mq2: v })
-              )}
-            </div>
-          </div>
-
-          {/* Soil */}
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold mb-2">Soil Sensors</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {renderSlider("soil_temperature", "Temperature", tempSensitivity.soil_temperature, (v) =>
-                setTempSensitivity({ ...tempSensitivity, soil_temperature: v })
-              )}
-              {renderSlider("soil_humidity", "Humidity", tempSensitivity.soil_humidity, (v) =>
-                setTempSensitivity({ ...tempSensitivity, soil_humidity: v })
-              )}
-              {renderSlider("soil_moisture", "Moisture", tempSensitivity.soil_moisture, (v) =>
-                setTempSensitivity({ ...tempSensitivity, soil_moisture: v })
-              )}
-            </div>
-          </div>
-
-          {/* Spikes */}
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold mb-2">Random Spikes</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1 p-3 rounded-lg border bg-muted/20">
-                <div className="text-sm font-medium">Chance</div>
-                <Slider
-                  min={0}
-                  max={0.3}
-                  step={0.01}
-                  value={[spikeChance]}
-                  onValueChange={(val) => setSpikeChance(val[0])}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {(spikeChance * 100).toFixed(0)}%
-                </span>
+          <Tabs defaultValue="simulation" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="simulation">Simulation Settings</TabsTrigger>
+              <TabsTrigger value="thresholds">Sensor Thresholds</TabsTrigger>
+              <TabsTrigger value="database">Database Control</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="simulation" className="space-y-4 mt-6">
+              <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">
+                <p className="font-medium mb-1">How simulation works:</p>
+                <ul className="text-xs space-y-1">
+                  <li>• <strong>1x = Normal</strong> polyhouse conditions with natural fluctuations</li>
+                  <li>• <strong>0.5x = Half</strong> the normal values (e.g., cooler temperature)</li>
+                  <li>• <strong>2x = Double</strong> the normal values (e.g., hotter temperature)</li>
+                  <li>• Values include daily cycles and small random variations</li>
+                </ul>
               </div>
-              <div className="flex flex-col gap-1 p-3 rounded-lg border bg-muted/20">
-                <div className="text-sm font-medium">Intensity</div>
-                <Slider
-                  min={0}
-                  max={3}
-                  step={0.1}
-                  value={[spikeIntensity]}
-                  onValueChange={(val) => setSpikeIntensity(val[0])}
-                />
-                <span className="text-xs text-muted-foreground">
-                  {spikeIntensity.toFixed(1)}x
-                </span>
-              </div>
-            </div>
-          </div>
 
-          <DialogFooter className="mt-6">
-            <Button variant="outline" onClick={() => setSettingsOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleApplySettings}>Apply</Button>
-          </DialogFooter>
+              {/* Air */}
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold mb-2">Air Sensors</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {renderSlider("air_temperature", "Temperature", tempSensitivity.air_temperature, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, air_temperature: v })
+                  )}
+                  {renderSlider("air_humidity", "Humidity", tempSensitivity.air_humidity, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, air_humidity: v })
+                  )}
+                  {renderSlider("air_air_quality_mq135", "Air Quality (MQ135)", tempSensitivity.air_air_quality_mq135, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, air_air_quality_mq135: v })
+                  )}
+                  {renderSlider("air_alcohol_mq3", "Alcohol (MQ3)", tempSensitivity.air_alcohol_mq3, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, air_alcohol_mq3: v })
+                  )}
+                  {renderSlider("air_smoke_mq2", "Smoke (MQ2)", tempSensitivity.air_smoke_mq2, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, air_smoke_mq2: v })
+                  )}
+                </div>
+              </div>
+
+              {/* Soil */}
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold mb-2">Soil Sensors</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {renderSlider("soil_temperature", "Temperature", tempSensitivity.soil_temperature, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, soil_temperature: v })
+                  )}
+                  {renderSlider("soil_humidity", "Humidity", tempSensitivity.soil_humidity, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, soil_humidity: v })
+                  )}
+                  {renderSlider("soil_moisture", "Moisture", tempSensitivity.soil_moisture, (v) =>
+                    setTempSensitivity({ ...tempSensitivity, soil_moisture: v })
+                  )}
+                </div>
+              </div>
+
+              {/* Spikes */}
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold mb-2">Random Spikes</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1 p-3 rounded-lg border bg-muted/20">
+                    <div className="text-sm font-medium">Chance</div>
+                    <Slider
+                      min={0}
+                      max={0.3}
+                      step={0.01}
+                      value={[spikeChance]}
+                      onValueChange={(val) => setSpikeChance(val[0])}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {(spikeChance * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1 p-3 rounded-lg border bg-muted/20">
+                    <div className="text-sm font-medium">Intensity</div>
+                    <Slider
+                      min={0}
+                      max={3}
+                      step={0.1}
+                      value={[spikeIntensity]}
+                      onValueChange={(val) => setSpikeIntensity(val[0])}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {spikeIntensity.toFixed(1)}x
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-6">
+                <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleApplySettings}>Apply Simulation Settings</Button>
+              </DialogFooter>
+            </TabsContent>
+            
+            <TabsContent value="thresholds" className="space-y-4 mt-6">
+              <ThresholdSettings 
+                onThresholdsChange={() => {
+                  // Optional: Add any additional logic when thresholds change
+                }}
+              />
+            </TabsContent>
+            
+            <TabsContent value="database" className="space-y-4 mt-6">
+              <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">
+                <p className="font-medium mb-1">Database Collection Control:</p>
+                <p className="text-xs">
+                  Control whether ESP nodes send data to the database. This affects storage usage and data collection.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Data Collection Mode</h3>
+                  
+                  <div className="grid gap-3">
+                    <div 
+                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                        dataCollectionMode === 'stopped' 
+                          ? 'border-red-300 bg-red-50 dark:bg-red-900/20' 
+                          : 'border-border hover:border-red-300'
+                      }`}
+                      onClick={() => updateDataCollectionStatus('stopped')}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Square className="h-5 w-5 text-red-600" />
+                        <div>
+                          <h4 className="font-medium text-red-700 dark:text-red-300">Stop Data Collection</h4>
+                          <p className="text-xs text-red-600 dark:text-red-400">
+                            ESP nodes will not send any data to database. Saves storage space.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div 
+                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                        dataCollectionMode === 'collecting' 
+                          ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20' 
+                          : 'border-border hover:border-blue-300'
+                      }`}
+                      onClick={() => updateDataCollectionStatus('collecting')}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Play className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <h4 className="font-medium text-blue-700 dark:text-blue-300">Collect Data Now</h4>
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            Start collecting data immediately. Good for testing or short-term monitoring.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div 
+                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                        dataCollectionMode === 'continuous' 
+                          ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
+                          : 'border-border hover:border-green-300'
+                      }`}
+                      onClick={() => updateDataCollectionStatus('continuous')}
+                    >
+                      <div className="flex items-center gap-3">
+                        <RotateCcw className="h-5 w-5 text-green-600" />
+                        <div>
+                          <h4 className="font-medium text-green-700 dark:text-green-300">Continuous Collection</h4>
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            Keep collecting data until manually stopped. Best for long-term monitoring.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold mb-3">Current Status</h3>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30">
+                    <Database className="h-5 w-5" />
+                    <div>
+                      <p className="font-medium">
+                        {dataCollectionMode === 'stopped' && "Data collection is stopped"}
+                        {dataCollectionMode === 'collecting' && "Currently collecting data"}
+                        {dataCollectionMode === 'continuous' && "Continuous data collection active"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        ESP nodes will {dataCollectionMode === 'stopped' ? 'not send' : 'send'} data to the database
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold mb-3">ESP Node Communication</h3>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>• ESP nodes check the status every 30 seconds</p>
+                    <p>• Changes take effect within 30 seconds on ESP nodes</p>
+                    <p>• Local network commands are sent immediately when possible</p>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

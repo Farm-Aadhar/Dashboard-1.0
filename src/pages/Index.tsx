@@ -6,6 +6,7 @@ import { SensorCard } from '@/components/dashboard/SensorCard';
 import { SensorChart } from '@/components/dashboard/SensorChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PastRecordsTable } from '@/components/dashboard/PastRecordsTable';
+import { getStatusWithThresholds } from '@/components/settings/ThresholdSettings';
 import {
   Thermometer,
   Droplets,
@@ -216,7 +217,26 @@ const Index = () => {
     };
   }, [user, authLoading]);
 
-  const getStatus = useCallback((value: number, type: 'temperature' | 'humidity' | 'soil' | 'air' | 'alcohol' | 'smoke' | 'airquality') => {
+  const getStatus = useCallback((value: number, type: 'air_temperature' | 'air_humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture' | 'temperature' | 'humidity' | 'soil' | 'air' | 'alcohol' | 'smoke' | 'airquality') => {
+    // Map legacy types to new threshold types
+    const thresholdTypeMap = {
+      'temperature': 'air_temperature',
+      'humidity': 'air_humidity', 
+      'soil': 'soil_moisture',
+      'air': 'air_quality_mq135',
+      'alcohol': 'alcohol_mq3',
+      'smoke': 'smoke_mq2',
+      'airquality': 'air_quality_mq135'
+    } as const;
+
+    const mappedType = thresholdTypeMap[type as keyof typeof thresholdTypeMap] || type;
+    
+    // Use the dynamic threshold system if available
+    if (['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2', 'soil_temperature', 'soil_humidity', 'soil_moisture'].includes(mappedType)) {
+      return getStatusWithThresholds(value, mappedType as any);
+    }
+    
+    // Fallback to hardcoded values for any unmapped types
     switch (type) {
       case 'temperature':
         if (value < 18 || value > 35) return 'critical';
@@ -230,19 +250,19 @@ const Index = () => {
         if (value < 15 || value > 85) return 'critical';
         if (value < 25 || value > 75) return 'warning';
         return 'healthy';
-      case 'airquality': // MQ135 - Air Quality (based on your 2786 ppm reading)
+      case 'airquality':
         if (value > 3500) return 'critical';
         if (value > 3000) return 'warning';
         return 'healthy';
-      case 'alcohol': // MQ3 - Alcohol (based on your 1083 ppm reading)
+      case 'alcohol':
         if (value > 1500) return 'critical';
         if (value > 1200) return 'warning';
         return 'healthy';
-      case 'smoke': // MQ2 - Smoke (based on your 2086 ppm reading)
+      case 'smoke':
         if (value > 2500) return 'critical';
         if (value > 2200) return 'warning';
         return 'healthy';
-      case 'air': // Legacy fallback
+      case 'air':
         if (value > 3500) return 'critical';
         if (value > 3000) return 'warning';
         return 'healthy';
@@ -299,7 +319,7 @@ const Index = () => {
             value={((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0).toFixed(1)}
             unit="°C"
             icon={<Thermometer className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0, 'temperature')}
+            status={getStatus((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0, 'soil_temperature')}
             trend={{ value: 5, type: 'up' }}
           />
         </div>
@@ -309,7 +329,7 @@ const Index = () => {
             value={latestData?.soil_moisture?.toFixed(1) || '0.0'}
             unit="%"
             icon={<TreePine className="h-5 w-5" />}
-            status={getStatus(latestData?.soil_moisture ?? 0, 'soil')}
+            status={getStatus(latestData?.soil_moisture ?? 0, 'soil_moisture')}
             trend={{ value: 8, type: 'up' }}
           />
         </div>
@@ -319,7 +339,7 @@ const Index = () => {
             value={((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0).toFixed(1)}
             unit="%"
             icon={<Droplets className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0, 'humidity')}
+            status={getStatus((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0, 'soil_humidity')}
             trend={{ value: 2, type: 'down' }}
           />
         </div>
@@ -329,7 +349,7 @@ const Index = () => {
             value={((latestData as any)?.air_temperature ?? 0).toFixed(1)}
             unit="°C"
             icon={<Thermometer className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_temperature ?? 0, 'temperature')}
+            status={getStatus((latestData as any)?.air_temperature ?? 0, 'air_temperature')}
             trend={{ value: 4, type: 'up' }}
           />
         </div>
@@ -339,7 +359,7 @@ const Index = () => {
             value={((latestData as any)?.air_humidity ?? 0).toFixed(1)}
             unit="%"
             icon={<CloudDrizzle className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_humidity ?? 0, 'humidity')}
+            status={getStatus((latestData as any)?.air_humidity ?? 0, 'air_humidity')}
             trend={{ value: 3, type: 'down' }}
           />
         </div>
@@ -349,7 +369,7 @@ const Index = () => {
             value={((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0)}
             unit="ppm"
             icon={<AlertTriangle className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'smoke')}
+            status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'smoke_mq2')}
             trend={{ value: 1, type: 'up' }}
           />
         </div>
@@ -359,7 +379,7 @@ const Index = () => {
             value={((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0)}
             unit="ppm"
             icon={<FlaskConical className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'alcohol')}
+            status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'alcohol_mq3')}
             trend={{ value: 2, type: 'down' }}
           />
         </div>
@@ -369,7 +389,7 @@ const Index = () => {
             value={((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0)}
             unit="ppm"
             icon={<Wind className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'airquality')}
+            status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'air_quality_mq135')}
             trend={{ value: 3, type: 'down' }}
           />
         </div>

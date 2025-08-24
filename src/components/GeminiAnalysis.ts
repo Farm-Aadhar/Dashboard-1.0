@@ -1,7 +1,18 @@
+import { getStoredThresholds } from './settings/ThresholdSettings';
+
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export async function getAnalysis(farmData: any[]) {
   try {
+    // Get current threshold settings
+    const thresholds = getStoredThresholds();
+    
+    // Build dynamic threshold text
+    const thresholdText = Object.entries(thresholds).map(([key, threshold]) => {
+      const sensorName = threshold.label;
+      return `- ${sensorName}: ${threshold.low}-${threshold.high}${threshold.unit} (critical below ${threshold.low}${threshold.unit} or above ${threshold.high}${threshold.unit})`;
+    }).join('\n                  ');
+    
     const safeData = JSON.stringify(farmData.slice(-10)); // last 10 readings only
 
     const response = await fetch(
@@ -19,15 +30,10 @@ export async function getAnalysis(farmData: any[]) {
                   Analyze this farm sensor data and return JSON ONLY in the exact format below. Make the farm_health score highly sensitive and precise to the actual data received. Provide clear, descriptive labels that indicate whether LOW/HIGH values are good or bad.
                   No explanations, no extra text. Include timestamps and exact values for any significant changes.
                   
-                  IMPORTANT REFERENCE VALUES FOR NORMAL POLYHOUSE CONDITIONS:
-                  - Air Temperature: 18-35°C (optimal: 25-30°C, warning: <20°C or >32°C, critical: <18°C or >35°C)
-                  - Air Humidity: 30-85% (optimal: 40-80%, warning: <40% or >80%, critical: <30% or >85%)
-                  - Air Quality (MQ135): 1000-3500 ppm (optimal: <3000 ppm, warning: 3000-3500 ppm, critical: >3500 ppm)
-                  - Alcohol (MQ3): 500-1500 ppm (optimal: <1200 ppm, warning: 1200-1500 ppm, critical: >1500 ppm)
-                  - Smoke (MQ2): 1000-2500 ppm (optimal: <2200 ppm, warning: 2200-2500 ppm, critical: >2500 ppm)
-                  - Soil Temperature: 18-35°C (optimal: 20-32°C, warning: <20°C or >32°C, critical: <18°C or >35°C)
-                  - Soil Humidity: 30-85% (optimal: 40-80%, warning: <40% or >80%, critical: <30% or >85%)
-                  - Soil Moisture: 15-85% (optimal: 25-75%, warning: <25% or >75%, critical: <15% or >85%)
+                  CURRENT CONFIGURED THRESHOLD VALUES FOR THIS FARM:
+                  ${thresholdText}
+                  
+                  NOTE: These thresholds are user-configured and should be used as the reference for optimal/warning/critical ranges.
 
                   FORMAT REQUIREMENTS:
                   - For indices, use descriptive labels like "Heat Stress Risk" instead of just "Heat Stress"

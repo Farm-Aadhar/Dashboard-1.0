@@ -11,20 +11,29 @@
 function getESPConnectionStatus() {
     try {
         const enabled = localStorage.getItem('esp_connection_enabled');
-        const isEnabled = enabled ? JSON.parse(enabled) : true;
+        const collectionMode = localStorage.getItem('data_collection_mode') || 'stopped';
+        const isEnabled = enabled ? JSON.parse(enabled) : false;
+        
+        const messages = {
+            stopped: "Data collection stopped - ESP nodes should not send data to database",
+            collecting: "Data collection active - ESP nodes should send data to database", 
+            continuous: "Continuous data collection - ESP nodes should continuously send data to database"
+        };
         
         return {
             esp_connection_enabled: isEnabled,
+            data_collection_enabled: collectionMode !== 'stopped',
+            collection_mode: collectionMode,
             timestamp: new Date().toISOString(),
-            message: isEnabled 
-                ? "ESP nodes are allowed to send data" 
-                : "ESP nodes should stop sending data"
+            message: messages[collectionMode] || messages.stopped
         };
     } catch (error) {
         return {
-            esp_connection_enabled: true,
+            esp_connection_enabled: false,
+            data_collection_enabled: false,
+            collection_mode: "stopped",
             timestamp: new Date().toISOString(),
-            message: "ESP nodes are allowed to send data (default)"
+            message: "Data collection stopped - ESP nodes should not send data to database (default)"
         };
     }
 }
