@@ -68,8 +68,11 @@ unsigned long lastMQDisplayMillis = 0;
 const long mqDisplayInterval = 2000;
 unsigned long lastDataSendMillis = 0;
 const long dataSendInterval = 500; // Send data every 0.5 second
+unsigned long lastStatusCheckMillis = 0;
+const long statusCheckInterval = 30000; // Check connection status every 30 seconds
 
 bool isLoggingEnabled = true;
+bool dashboardConnectionEnabled = true; // Status from dashboard
 
 WebServer server(80);
 
@@ -80,8 +83,11 @@ void updateLCDDisplay();
 void handleRoot();
 void handleNotFound();
 void handleToggleLogging();
+void handleEnableLogging();
+void handleDisableLogging();
 void cacheSensorData();
 void connectToWiFi(); // NEW: Function to handle multiple Wi-Fi networks
+void checkDashboardConnectionStatus(); // NEW: Function to check dashboard status
 
 // --- Setup Function ---
 void setup() {
@@ -133,6 +139,8 @@ void setup() {
   // --- Web Server Setup with new endpoint ---
   server.on("/", handleRoot);
   server.on("/toggle-logging", handleToggleLogging);
+  server.on("/enable-logging", handleEnableLogging);
+  server.on("/disable-logging", handleDisableLogging);
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.println("HTTP server started.");
@@ -150,9 +158,15 @@ void loop() {
   server.handleClient();
   updateLCDDisplay();
 
+  // Check dashboard connection status periodically
+  if (millis() - lastStatusCheckMillis >= statusCheckInterval) {
+    checkDashboardConnectionStatus();
+    lastStatusCheckMillis = millis();
+  }
+
   // Wi-Fi connection LED blinking (handled in connectToWiFi)
-  // Data sending LED logic
-  if (isLoggingEnabled) {
+  // Data sending LED logic - only send if both local logging and dashboard connection are enabled
+  if (isLoggingEnabled && dashboardConnectionEnabled) {
     if (millis() - lastDataSendMillis >= 1000) { // Send data every 1 sec
       sendSensorData();
       // Blink LED once after successful data send
@@ -169,9 +183,12 @@ void loop() {
       digitalWrite(LED_PIN, LOW);
       lastAliveBlinkMillis = millis();
     }
-    if (millis() - lastDataSendMillis >= 1000) {
-      cacheSensorData();
-      lastDataSendMillis = millis();
+    // Cache data locally if dashboard connection is disabled but local logging is enabled
+    if (isLoggingEnabled && !dashboardConnectionEnabled) {
+      if (millis() - lastDataSendMillis >= 1000) {
+        cacheSensorData();
+        lastDataSendMillis = millis();
+      }
     }
   }
   delay(1);
@@ -335,6 +352,82 @@ void handleToggleLogging() {
   }
 #endif
   server.send(200, "text/plain", isLoggingEnabled ? "Logging Enabled" : "Logging Disabled");
+}
+
+// NEW: Function to enable logging via dashboard request
+void handleEnableLogging() {
+  isLoggingEnabled = true;
+#ifdef USE_LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Logging: ON");
+  lcd.setCursor(0, 1);
+  lcd.print("(Dashboard)");
+#endif
+  Serial.println("Data logging enabled via dashboard.");
+  server.send(200, "text/plain", "Logging Enabled");
+}
+
+// NEW: Function to disable logging via dashboard request
+void handleDisableLogging() {
+  isLoggingEnabled = false;
+#ifdef USE_LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Logging: OFF");
+  lcd.setCursor(0, 1);
+  lcd.print("(Dashboard)");
+#endif
+  Serial.println("Data logging disabled via dashboard.");
+  server.send(200, "text/plain", "Logging Disabled");
+}
+
+// NEW: Function to check dashboard connection status
+void checkDashboardConnectionStatus() {
+  if (WiFi.status() != WL_CONNECTED) {
+    dashboardConnectionEnabled = false;
+    return;
+  }
+
+  HTTPClient http;
+  // Try multiple possible dashboard URLs
+  String dashboardURLs[] = {
+    "http://192.168.1.100:5173/esp-connection-status.json",  // Adjust IP as needed
+    "http://localhost:5173/esp-connection-status.json",
+    "http://farm-dashboard.local:5173/esp-connection-status.json"
+  };
+  
+  bool statusFound = false;
+  
+  for (int i = 0; i < 3 && !statusFound; i++) {
+    http.begin(dashboardURLs[i]);
+    http.setTimeout(3000); // 3 second timeout
+    
+    int httpResponseCode = http.GET();
+    
+    if (httpResponseCode == 200) {
+      String payload = http.getString();
+      
+      // Simple JSON parsing - look for "esp_connection_enabled":true/false
+      if (payload.indexOf("\"esp_connection_enabled\":true") != -1) {
+        dashboardConnectionEnabled = true;
+        statusFound = true;
+        Serial.println("Dashboard connection status: ENABLED");
+      } else if (payload.indexOf("\"esp_connection_enabled\":false") != -1) {
+        dashboardConnectionEnabled = false;
+        statusFound = true;
+        Serial.println("Dashboard connection status: DISABLED");
+      }
+    }
+    
+    http.end();
+  }
+  
+  if (!statusFound) {
+    // If we can't reach any dashboard, assume connection is enabled (fail-safe)
+    dashboardConnectionEnabled = true;
+    Serial.println("Failed to check dashboard status, defaulting to ENABLED");
+  }
 }
 
 // NEW: Placeholder function for caching data to a local file

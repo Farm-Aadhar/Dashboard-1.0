@@ -230,32 +230,6 @@ export function SimulationController() {
     // Store the state in localStorage for ESP nodes to check
     localStorage.setItem('esp_connection_enabled', JSON.stringify(newState));
     
-    // Update the public JSON file that ESP nodes can poll
-    const statusData = {
-      esp_connection_enabled: newState,
-      timestamp: new Date().toISOString(),
-      message: newState 
-        ? "ESP nodes are allowed to send data" 
-        : "ESP nodes should stop sending data"
-    };
-    
-    // Update the JSON file via fetch (this will work when served by the dev server)
-    try {
-      const response = await fetch('/esp-connection-status.json', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(statusData),
-      });
-      
-      if (!response.ok) {
-        console.log('Could not update status file via API, ESP will use local polling');
-      }
-    } catch (error) {
-      console.log('Status file update failed, ESP will use local polling:', error);
-    }
-    
     if (newState) {
       toast({
         title: "ESP Connection Enabled",
@@ -265,19 +239,13 @@ export function SimulationController() {
       
       // Try to enable logging on ESP nodes
       try {
-        const responses = await Promise.allSettled([
-          fetch('http://air-node.local/enable-logging').then(r => r.ok ? 'air-node' : null),
-          fetch('http://soil-node.local/enable-logging').then(r => r.ok ? 'soil-node' : null)
-        ]);
+        const airNodeResponse = await fetch('http://air-node.local/toggle-logging');
+        const soilNodeResponse = await fetch('http://soil-node.local/toggle-logging');
         
-        const successful = responses
-          .filter(result => result.status === 'fulfilled' && result.value)
-          .map(result => (result as any).value);
-        
-        if (successful.length > 0) {
+        if (airNodeResponse.ok || soilNodeResponse.ok) {
           toast({
             title: "ESP Nodes Connected",
-            description: `Successfully enabled data logging on: ${successful.join(', ')}`,
+            description: "Successfully enabled data logging on ESP nodes.",
             variant: "default"
           });
         }
@@ -293,19 +261,13 @@ export function SimulationController() {
       
       // Try to disable logging on ESP nodes
       try {
-        const responses = await Promise.allSettled([
-          fetch('http://air-node.local/disable-logging').then(r => r.ok ? 'air-node' : null),
-          fetch('http://soil-node.local/disable-logging').then(r => r.ok ? 'soil-node' : null)
-        ]);
+        const airNodeResponse = await fetch('http://air-node.local/toggle-logging');
+        const soilNodeResponse = await fetch('http://soil-node.local/toggle-logging');
         
-        const successful = responses
-          .filter(result => result.status === 'fulfilled' && result.value)
-          .map(result => (result as any).value);
-        
-        if (successful.length > 0) {
+        if (airNodeResponse.ok || soilNodeResponse.ok) {
           toast({
             title: "ESP Nodes Disconnected",
-            description: `Successfully disabled data logging on: ${successful.join(', ')}`,
+            description: "Successfully disabled data logging on ESP nodes.",
             variant: "default"
           });
         }
