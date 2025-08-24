@@ -20,14 +20,14 @@ export async function getAnalysis(farmData: any[]) {
                   No explanations, no extra text. Include timestamps and exact values for any significant changes.
                   
                   IMPORTANT REFERENCE VALUES FOR NORMAL POLYHOUSE CONDITIONS:
-                  - Air Temperature: 15-40°C (base: 25°C, normal range: ±3°C)
-                  - Air Humidity: 30-90% (base: 65%, normal range: ±8%)
-                  - Air Quality (MQ135): 70-150 ppm (base: 100 ppm, normal range: ±20 ppm, lower = better)
-                  - Alcohol (MQ3): 100-500 ppm (base: 150 ppm, normal range: ±40 ppm)
-                  - Smoke (MQ2): 200-400 ppm (base: 250 ppm, normal range: ±80 ppm)
-                  - Soil Temperature: 15-35°C (base: 22°C, normal range: ±2°C)
-                  - Soil Humidity: 40-90% (base: 70%, normal range: ±10%)
-                  - Soil Moisture: 20-90% (base: 60%, normal range: ±15%)
+                  - Air Temperature: 18-35°C (optimal: 25-30°C, warning: <20°C or >32°C, critical: <18°C or >35°C)
+                  - Air Humidity: 30-85% (optimal: 40-80%, warning: <40% or >80%, critical: <30% or >85%)
+                  - Air Quality (MQ135): 1000-3500 ppm (optimal: <3000 ppm, warning: 3000-3500 ppm, critical: >3500 ppm)
+                  - Alcohol (MQ3): 500-1500 ppm (optimal: <1200 ppm, warning: 1200-1500 ppm, critical: >1500 ppm)
+                  - Smoke (MQ2): 1000-2500 ppm (optimal: <2200 ppm, warning: 2200-2500 ppm, critical: >2500 ppm)
+                  - Soil Temperature: 18-35°C (optimal: 20-32°C, warning: <20°C or >32°C, critical: <18°C or >35°C)
+                  - Soil Humidity: 30-85% (optimal: 40-80%, warning: <40% or >80%, critical: <30% or >85%)
+                  - Soil Moisture: 15-85% (optimal: 25-75%, warning: <25% or >75%, critical: <15% or >85%)
 
                   FORMAT REQUIREMENTS:
                   - For indices, use descriptive labels like "Heat Stress Risk" instead of just "Heat Stress"

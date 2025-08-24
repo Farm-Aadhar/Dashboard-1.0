@@ -216,23 +216,35 @@ const Index = () => {
     };
   }, [user, authLoading]);
 
-  const getStatus = useCallback((value: number, type: 'temperature' | 'humidity' | 'soil' | 'air') => {
+  const getStatus = useCallback((value: number, type: 'temperature' | 'humidity' | 'soil' | 'air' | 'alcohol' | 'smoke' | 'airquality') => {
     switch (type) {
       case 'temperature':
-        if (value < 18 || value > 32) return 'critical';
-        if (value < 20 || value > 30) return 'warning';
+        if (value < 18 || value > 35) return 'critical';
+        if (value < 20 || value > 32) return 'warning';
         return 'healthy';
       case 'humidity':
-        if (value < 40 || value > 80) return 'critical';
-        if (value < 50 || value > 70) return 'warning';
+        if (value < 30 || value > 85) return 'critical';
+        if (value < 40 || value > 80) return 'warning';
         return 'healthy';
       case 'soil':
-        if (value < 20 || value > 80) return 'critical';
-        if (value < 30 || value > 70) return 'warning';
+        if (value < 15 || value > 85) return 'critical';
+        if (value < 25 || value > 75) return 'warning';
         return 'healthy';
-      case 'air':
-        if (value > 200) return 'critical';
-        if (value > 100) return 'warning';
+      case 'airquality': // MQ135 - Air Quality (based on your 2786 ppm reading)
+        if (value > 3500) return 'critical';
+        if (value > 3000) return 'warning';
+        return 'healthy';
+      case 'alcohol': // MQ3 - Alcohol (based on your 1083 ppm reading)
+        if (value > 1500) return 'critical';
+        if (value > 1200) return 'warning';
+        return 'healthy';
+      case 'smoke': // MQ2 - Smoke (based on your 2086 ppm reading)
+        if (value > 2500) return 'critical';
+        if (value > 2200) return 'warning';
+        return 'healthy';
+      case 'air': // Legacy fallback
+        if (value > 3500) return 'critical';
+        if (value > 3000) return 'warning';
         return 'healthy';
       default:
         return 'healthy';
@@ -337,7 +349,7 @@ const Index = () => {
             value={((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0)}
             unit="ppm"
             icon={<AlertTriangle className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'air')}
+            status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'smoke')}
             trend={{ value: 1, type: 'up' }}
           />
         </div>
@@ -347,7 +359,7 @@ const Index = () => {
             value={((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0)}
             unit="ppm"
             icon={<FlaskConical className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'air')}
+            status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'alcohol')}
             trend={{ value: 2, type: 'down' }}
           />
         </div>
@@ -357,7 +369,7 @@ const Index = () => {
             value={((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0)}
             unit="ppm"
             icon={<Wind className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'air')}
+            status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'airquality')}
             trend={{ value: 3, type: 'down' }}
           />
         </div>

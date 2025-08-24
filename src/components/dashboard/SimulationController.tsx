@@ -63,14 +63,14 @@ const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(ma
 
 // ---------- Realistic polyhouse base values ----------
 const POLYHOUSE_BASE_VALUES = {
-  air_temperature: { base: 25, normalRange: 3, min: 10, max: 60 }, // °C
-  air_humidity: { base: 65, normalRange: 8, min: 30, max: 90 }, // %
-  air_air_quality_mq135: { base: 100, normalRange: 20, min: 70, max: 150 }, // ppm (lower = better)
-  air_alcohol_mq3: { base: 150, normalRange: 40, min: 100, max: 500 }, // ppm
-  air_smoke_mq2: { base: 250, normalRange: 80, min: 200, max: 400 }, // ppm
-  soil_temperature: { base: 22, normalRange: 2, min: 15, max: 35 }, // °C
-  soil_humidity: { base: 70, normalRange: 10, min: 40, max: 90 }, // %
-  soil_moisture: { base: 60, normalRange: 15, min: 20, max: 90 }, // %
+  air_temperature: { base: 28, normalRange: 3, min: 18, max: 35 }, // °C - based on your 28.7°C reading
+  air_humidity: { base: 64, normalRange: 8, min: 30, max: 85 }, // % - based on your 64% reading
+  air_air_quality_mq135: { base: 2800, normalRange: 400, min: 1000, max: 3500 }, // ppm - based on your 2786 ppm
+  air_alcohol_mq3: { base: 1080, normalRange: 200, min: 500, max: 1500 }, // ppm - based on your 1083 ppm
+  air_smoke_mq2: { base: 2100, normalRange: 300, min: 1000, max: 2500 }, // ppm - based on your 2086 ppm
+  soil_temperature: { base: 26, normalRange: 2, min: 18, max: 35 }, // °C - slightly lower than air
+  soil_humidity: { base: 70, normalRange: 10, min: 30, max: 85 }, // % - typical soil humidity
+  soil_moisture: { base: 60, normalRange: 15, min: 15, max: 85 }, // % - soil moisture content
 };
 
 // ---------- Generator ----------
@@ -312,8 +312,20 @@ export function SimulationController() {
 
   return (
     <div className="flex gap-2">
+
       <Button variant="outline" size="sm" onClick={toggleSimulation}>
         {running ? "Stop Simulation" : "Start Simulation"}
+      </Button>
+
+      <Button variant="outline" size="sm" onClick={() => {
+        toast({
+          title: "Connection Started",
+          description: "Attempting to connect to ESP Node...",
+          variant: "default"
+        });
+        // TODO: Add ESP connection logic here
+      }}>
+        Start Connection
       </Button>
 
       <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
