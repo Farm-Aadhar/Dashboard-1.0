@@ -40,11 +40,11 @@ const getIcon = (iconName: string) => {
   }
 };
 
-// Default threshold values based on current system
+// Default threshold values centered around typical current readings with ±150 range
 export const DEFAULT_THRESHOLDS = {
-  air_temperature: {
-    low: 20,
-    high: 32,
+  temperature: {
+    low: 0,
+    high: 28.5,
     unit: "°C",
     label: "Air Temperature",
     icon: "thermometer",
@@ -52,9 +52,9 @@ export const DEFAULT_THRESHOLDS = {
     max: 50,
     step: 0.5
   },
-  air_humidity: {
-    low: 40,
-    high: 80,
+  humidity: {
+    low: 0,
+    high: 72.0,
     unit: "%",
     label: "Air Humidity",
     icon: "droplets",
@@ -63,8 +63,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 1
   },
   air_quality_mq135: {
-    low: 1000,
-    high: 3000,
+    low: 0,
+    high: 3385,
     unit: "ppm",
     label: "Air Quality (MQ135)",
     icon: "wind",
@@ -73,8 +73,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 50
   },
   alcohol_mq3: {
-    low: 500,
-    high: 1200,
+    low: 0,
+    high: 1410,
     unit: "ppm",
     label: "Alcohol (MQ3)",
     icon: "activity",
@@ -83,8 +83,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 50
   },
   smoke_mq2: {
-    low: 1000,
-    high: 2200,
+    low: 0,
+    high: 2875,
     unit: "ppm",
     label: "Smoke (MQ2)",
     icon: "flame",
@@ -93,8 +93,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 50
   },
   soil_temperature: {
-    low: 20,
-    high: 32,
+    low: 15,
+    high: 45,
     unit: "°C",
     label: "Soil Temperature",
     icon: "thermometer",
@@ -103,8 +103,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 0.5
   },
   soil_humidity: {
-    low: 40,
-    high: 80,
+    low: 25,
+    high: 85,
     unit: "%",
     label: "Soil Humidity",
     icon: "droplets",
@@ -302,7 +302,7 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
     );
   };
 
-  const airSensors = ['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'];
+  const airSensors = ['temperature', 'humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'];
   const soilSensors = ['soil_temperature', 'soil_humidity', 'soil_moisture'];
 
   return (
@@ -397,7 +397,7 @@ export function getStoredThresholds(): Record<string, SensorThreshold> {
 // Export function for status calculation using stored thresholds
 export function getStatusWithThresholds(
   value: number, 
-  type: 'air_temperature' | 'air_humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture'
+  type: 'temperature' | 'humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture'
 ): 'healthy' | 'warning' | 'critical' {
   const thresholds = getStoredThresholds();
   const threshold = thresholds[type];

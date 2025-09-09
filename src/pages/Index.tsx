@@ -320,6 +320,7 @@ const Index = () => {
             unit="°C"
             icon={<Thermometer className="h-5 w-5" />}
             status={getStatus((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0, 'soil_temperature')}
+            sensorType="soil_temperature"
             trend={{ value: 5, type: 'up' }}
           />
         </div>
@@ -330,6 +331,7 @@ const Index = () => {
             unit="%"
             icon={<TreePine className="h-5 w-5" />}
             status={getStatus(latestData?.soil_moisture ?? 0, 'soil_moisture')}
+            sensorType="soil_moisture"
             trend={{ value: 8, type: 'up' }}
           />
         </div>
@@ -340,6 +342,7 @@ const Index = () => {
             unit="%"
             icon={<Droplets className="h-5 w-5" />}
             status={getStatus((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0, 'soil_humidity')}
+            sensorType="soil_humidity"
             trend={{ value: 2, type: 'down' }}
           />
         </div>
@@ -350,6 +353,7 @@ const Index = () => {
             unit="°C"
             icon={<Thermometer className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_temperature ?? 0, 'air_temperature')}
+            sensorType="air_temperature"
             trend={{ value: 4, type: 'up' }}
           />
         </div>
@@ -360,6 +364,7 @@ const Index = () => {
             unit="%"
             icon={<CloudDrizzle className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_humidity ?? 0, 'air_humidity')}
+            sensorType="air_humidity"
             trend={{ value: 3, type: 'down' }}
           />
         </div>
@@ -370,6 +375,7 @@ const Index = () => {
             unit="ppm"
             icon={<AlertTriangle className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'smoke_mq2')}
+            sensorType="smoke_mq2"
             trend={{ value: 1, type: 'up' }}
           />
         </div>
@@ -380,6 +386,7 @@ const Index = () => {
             unit="ppm"
             icon={<FlaskConical className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'alcohol_mq3')}
+            sensorType="alcohol_mq3"
             trend={{ value: 2, type: 'down' }}
           />
         </div>
@@ -390,6 +397,7 @@ const Index = () => {
             unit="ppm"
             icon={<Wind className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'air_quality_mq135')}
+            sensorType="air_quality_mq135"
             trend={{ value: 3, type: 'down' }}
           />
         </div>

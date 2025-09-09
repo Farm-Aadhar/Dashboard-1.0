@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getStoredThresholds } from '@/components/settings/ThresholdSettings';
 
 interface SensorCardProps {
   title: string;
@@ -9,6 +10,7 @@ interface SensorCardProps {
   unit: string;
   icon: ReactNode;
   status: 'healthy' | 'warning' | 'critical';
+  sensorType?: 'air_temperature' | 'air_humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture';
   trend?: {
     value: number;
     type: 'up' | 'down';
@@ -34,16 +36,41 @@ const statusConfig = {
   }
 };
 
+// Function to determine threshold status text (High/Normal/Low)
+function getThresholdStatus(value: number, sensorType: string): { text: string; color: string; icon: string } {
+  const thresholds = getStoredThresholds();
+  const threshold = thresholds[sensorType];
+  
+  if (!threshold) {
+    return { text: 'Normal', color: 'text-muted-foreground', icon: '○' };
+  }
+  
+  const numericValue = typeof value === 'string' ? parseFloat(value) : value;
+  
+  if (numericValue < threshold.low) {
+    return { text: 'Low', color: 'text-blue-600', icon: '↓' };
+  } else if (numericValue > threshold.high) {
+    return { text: 'High', color: 'text-red-600', icon: '↑' };
+  } else {
+    return { text: 'Normal', color: 'text-green-600', icon: '○' };
+  }
+}
+
 export function SensorCard({ 
   title, 
   value, 
   unit, 
   icon, 
   status, 
+  sensorType,
   trend, 
   className 
 }: SensorCardProps) {
   const statusInfo = statusConfig[status];
+  const numericValue = typeof value === 'string' ? parseFloat(value) : value;
+  
+  // Get threshold status if sensorType is provided
+  const thresholdStatus = sensorType ? getThresholdStatus(numericValue, sensorType) : null;
 
   return (
     <Card className={cn("sensor-card-glow hover-scale cursor-pointer", className)}>
@@ -64,7 +91,19 @@ export function SensorCard({
             <span className="text-sm text-muted-foreground">{unit}</span>
           </div>
           
-          {trend && (
+          {/* Show threshold status instead of trend */}
+          {thresholdStatus && (
+            <div className={cn(
+              "flex items-center gap-1 text-xs font-medium",
+              thresholdStatus.color
+            )}>
+              <span>{thresholdStatus.icon}</span>
+              <span>{thresholdStatus.text}</span>
+            </div>
+          )}
+          
+          {/* Fallback to trend if no sensorType provided */}
+          {!thresholdStatus && trend && (
             <div className={cn(
               "flex items-center gap-1 text-xs",
               trend.type === 'up' ? 'text-success' : 'text-destructive'
