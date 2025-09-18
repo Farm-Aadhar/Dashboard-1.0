@@ -11,7 +11,7 @@ interface SensorCardProps {
   unit: string;
   icon: ReactNode;
   status: 'healthy' | 'warning' | 'critical';
-  sensorType?: 'air_temperature' | 'air_humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture';
+  sensorType?: 'air_temperature' | 'air_humidity' | 'temperature' | 'humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture';
   trend?: {
     value: number;
     type: 'up' | 'down';

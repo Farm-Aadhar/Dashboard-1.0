@@ -308,8 +308,8 @@ const Index = () => {
             value={((latestData as any)?.air_temperature ?? latestData?.temperature ?? 0).toFixed(1)}
             unit="°C"
             icon={<Thermometer className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_temperature ?? latestData?.temperature ?? 0, 'air_temperature')}
-            sensorType="air_temperature"
+            status={getStatus((latestData as any)?.air_temperature ?? latestData?.temperature ?? 0, 'temperature')}
+            sensorType="temperature"
             currentThresholds={currentThresholds}
             trend={{ value: 4, type: 'up' }}
           />
@@ -320,8 +320,8 @@ const Index = () => {
             value={((latestData as any)?.air_humidity ?? latestData?.humidity ?? 0).toFixed(1)}
             unit="%"
             icon={<CloudDrizzle className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_humidity ?? latestData?.humidity ?? 0, 'air_humidity')}
-            sensorType="air_humidity"
+            status={getStatus((latestData as any)?.air_humidity ?? latestData?.humidity ?? 0, 'humidity')}
+            sensorType="humidity"
             currentThresholds={currentThresholds}
             trend={{ value: 3, type: 'down' }}
           />
