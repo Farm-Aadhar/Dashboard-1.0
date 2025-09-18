@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Thermometer, Droplets, Wind, Flame, TreePine, Activity } from "lucide-react";
+import { Thermometer, Droplets, Wind, Flame, TreePine, Activity, Leaf } from "lucide-react";
+import { POLYHOUSE_CROP_CONDITIONS, CropCondition } from "@/lib/polyhouseCropConditions";
 
 // Threshold types
 export interface SensorThreshold {
@@ -43,8 +45,8 @@ const getIcon = (iconName: string) => {
 // Default threshold values centered around typical current readings with ±150 range
 export const DEFAULT_THRESHOLDS = {
   temperature: {
-    low: 0,
-    high: 28.5,
+    low: 18,
+    high: 28,
     unit: "°C",
     label: "Air Temperature",
     icon: "thermometer",
@@ -53,8 +55,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 0.5
   },
   humidity: {
-    low: 0,
-    high: 72.0,
+    low: 40,
+    high: 80,
     unit: "%",
     label: "Air Humidity",
     icon: "droplets",
@@ -63,8 +65,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 1
   },
   air_quality_mq135: {
-    low: 0,
-    high: 3385,
+    low: 50,
+    high: 500,
     unit: "ppm",
     label: "Air Quality (MQ135)",
     icon: "wind",
@@ -73,8 +75,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 50
   },
   alcohol_mq3: {
-    low: 0,
-    high: 1410,
+    low: 30,
+    high: 300,
     unit: "ppm",
     label: "Alcohol (MQ3)",
     icon: "activity",
@@ -83,8 +85,8 @@ export const DEFAULT_THRESHOLDS = {
     step: 50
   },
   smoke_mq2: {
-    low: 0,
-    high: 2875,
+    low: 50,
+    high: 400,
     unit: "ppm",
     label: "Smoke (MQ2)",
     icon: "flame",
@@ -125,6 +127,7 @@ export const DEFAULT_THRESHOLDS = {
 };
 
 const STORAGE_KEY = "sensor_thresholds_v1";
+const CROP_STORAGE_KEY = "selected_crop_v1";
 
 export interface ThresholdSettingsProps {
   onThresholdsChange?: (thresholds: Record<string, SensorThreshold>) => void;
@@ -132,12 +135,14 @@ export interface ThresholdSettingsProps {
 
 export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps) {
   const [thresholds, setThresholds] = useState<Record<string, SensorThreshold>>(DEFAULT_THRESHOLDS);
+  const [selectedCrop, setSelectedCrop] = useState<string>("");
   const [hasChanges, setHasChanges] = useState(false);
   const { toast } = useToast();
 
-  // Load saved thresholds on component mount
+  // Load saved thresholds and selected crop on component mount
   useEffect(() => {
     try {
+      // Load thresholds
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -151,6 +156,12 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
         });
         
         setThresholds(merged);
+      }
+
+      // Load selected crop
+      const savedCrop = localStorage.getItem(CROP_STORAGE_KEY);
+      if (savedCrop) {
+        setSelectedCrop(savedCrop);
       }
     } catch (error) {
       console.error("Error loading thresholds:", error);
@@ -182,12 +193,13 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
   const saveThresholds = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(thresholds));
+      localStorage.setItem(CROP_STORAGE_KEY, selectedCrop);
       setHasChanges(false);
       onThresholdsChange?.(thresholds);
       
       toast({
         title: "Thresholds Saved",
-        description: "Sensor threshold values have been updated successfully.",
+        description: "Threshold values have been updated successfully.",
         variant: "default"
       });
     } catch (error) {
@@ -197,6 +209,54 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
         variant: "destructive"
       });
     }
+  };
+
+  const applyCropThresholds = (cropName: string) => {
+    const crop = POLYHOUSE_CROP_CONDITIONS.find(c => c.cropName === cropName);
+    if (!crop) return;
+
+    const newThresholds = { ...thresholds };
+    
+    // Map crop conditions to thresholds
+    newThresholds.temperature = {
+      ...newThresholds.temperature,
+      low: crop.idealAirTemperature.min,
+      high: crop.idealAirTemperature.max
+    };
+    
+    newThresholds.humidity = {
+      ...newThresholds.humidity,
+      low: crop.idealAirHumidity.min,
+      high: crop.idealAirHumidity.max
+    };
+    
+    newThresholds.soil_temperature = {
+      ...newThresholds.soil_temperature,
+      low: crop.idealSoilTemperature.min,
+      high: crop.idealSoilTemperature.max
+    };
+    
+    newThresholds.soil_humidity = {
+      ...newThresholds.soil_humidity,
+      low: crop.idealSoilHumidity.min,
+      high: crop.idealSoilHumidity.max
+    };
+    
+    newThresholds.soil_moisture = {
+      ...newThresholds.soil_moisture,
+      low: crop.idealSoilMoisture.min,
+      high: crop.idealSoilMoisture.max
+    };
+
+    setThresholds(newThresholds);
+    setSelectedCrop(cropName);
+    setHasChanges(true);
+    
+    toast({
+      title: "Crop Thresholds Applied",
+      description: `Thresholds set for ${cropName}. Remember to save changes.`,
+      variant: "default"
+    });
   };
 
   const resetToDefaults = () => {
@@ -216,25 +276,25 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
 
   const renderThresholdSlider = (sensorKey: string, threshold: SensorThreshold) => {
     return (
-      <Card key={sensorKey} className="p-4 bg-card border-border">
-        <div className="flex items-center gap-2 mb-4">
-          {getIcon(threshold.icon)}
-          <h3 className="font-medium text-foreground">{threshold.label}</h3>
-          <Badge variant="outline" className="ml-auto border-border text-muted-foreground">
+      <div key={sensorKey} className="p-3 border rounded-lg bg-card">
+        {/* Compact header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {getIcon(threshold.icon)}
+            <Label className="text-sm font-medium">{threshold.label}</Label>
+          </div>
+          <Badge variant="outline" className="text-xs px-2 py-1">
             {threshold.unit}
           </Badge>
         </div>
-        
-        <div className="space-y-6">
-          {/* Low Threshold */}
+
+        {/* Compact thresholds in grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Low threshold - compact */}
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label className="text-sm font-medium text-orange-600">
-                Low Threshold (Warning Below)
-              </Label>
-              <span className="text-sm font-mono bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 text-orange-800 dark:text-orange-200 px-2 py-1 rounded">
-                {threshold.low}{threshold.unit}
-              </span>
+            <div className="flex justify-between text-xs">
+              <span className="text-orange-600">Low</span>
+              <span className="font-mono">{threshold.low}{threshold.unit}</span>
             </div>
             <Slider
               value={[threshold.low]}
@@ -242,24 +302,15 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
               min={threshold.min}
               max={threshold.max}
               step={threshold.step}
-              className="w-full"
+              className="h-2"
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{threshold.min}{threshold.unit}</span>
-              <span>Critical below this value</span>
-              <span>{threshold.max}{threshold.unit}</span>
-            </div>
           </div>
 
-          {/* High Threshold */}
+          {/* High threshold - compact */}
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label className="text-sm font-medium text-red-600">
-                High Threshold (Warning Above)
-              </Label>
-              <span className="text-sm font-mono bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-800 dark:text-red-200 px-2 py-1 rounded">
-                {threshold.high}{threshold.unit}
-              </span>
+            <div className="flex justify-between text-xs">
+              <span className="text-red-600">High</span>
+              <span className="font-mono">{threshold.high}{threshold.unit}</span>
             </div>
             <Slider
               value={[threshold.high]}
@@ -267,38 +318,18 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
               min={threshold.min}
               max={threshold.max}
               step={threshold.step}
-              className="w-full"
+              className="h-2"
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{threshold.min}{threshold.unit}</span>
-              <span>Critical above this value</span>
-              <span>{threshold.max}{threshold.unit}</span>
-            </div>
-          </div>
-
-          {/* Status Zones */}
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="text-center p-2 rounded bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <div className="font-medium text-red-700 dark:text-red-300">Critical</div>
-              <div className="text-red-600 dark:text-red-400">
-                &lt; {threshold.low}{threshold.unit}
-              </div>
-            </div>
-            <div className="text-center p-2 rounded bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-              <div className="font-medium text-green-700 dark:text-green-300">Healthy</div>
-              <div className="text-green-600 dark:text-green-400">
-                {threshold.low} - {threshold.high}{threshold.unit}
-              </div>
-            </div>
-            <div className="text-center p-2 rounded bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <div className="font-medium text-red-700 dark:text-red-300">Critical</div>
-              <div className="text-red-600 dark:text-red-400">
-                &gt; {threshold.high}{threshold.unit}
-              </div>
-            </div>
           </div>
         </div>
-      </Card>
+
+        {/* Compact status bar */}
+        <div className="flex justify-between mt-3 text-xs">
+          <span className="text-red-600">Crit: &lt;{threshold.low}</span>
+          <span className="text-green-600">OK: {threshold.low}-{threshold.high}</span>
+          <span className="text-red-600">Crit: &gt;{threshold.high}</span>
+        </div>
+      </div>
     );
   };
 
@@ -306,36 +337,92 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
   const soilSensors = ['soil_temperature', 'soil_humidity', 'soil_moisture'];
 
   return (
-    <div className="space-y-6">
-      <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">
-        <p className="font-medium mb-1">Configure sensor thresholds:</p>
-        <p className="text-xs">
-          Set warning and critical thresholds for all sensors. Values outside these ranges will trigger alerts in the dashboard, AI analysis, and reports.
-        </p>
+    <div className="space-y-4">
+      <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded">
+        <p>Set warning and critical thresholds for all sensors. Values outside these ranges trigger alerts.</p>
       </div>
 
+      {/* Compact Crop Selection */}
+      <Card className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Leaf className="h-4 w-4 text-green-600" />
+            <h3 className="text-sm font-medium">Current Crop</h3>
+          </div>
+          {selectedCrop && (
+            <Badge variant="secondary" className="text-xs">
+              {selectedCrop}
+            </Badge>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          <Select value={selectedCrop} onValueChange={setSelectedCrop}>
+            <SelectTrigger className="flex-1 h-8">
+              <SelectValue placeholder="Select crop..." />
+            </SelectTrigger>
+            <SelectContent>
+              {POLYHOUSE_CROP_CONDITIONS.map((crop) => (
+                <SelectItem key={crop.cropName} value={crop.cropName}>
+                  {crop.cropName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button 
+            size="sm"
+            variant="outline" 
+            onClick={() => selectedCrop && applyCropThresholds(selectedCrop)}
+            disabled={!selectedCrop}
+            className="h-8 px-3 text-xs"
+          >
+            Apply
+          </Button>
+        </div>
+        
+        {/* Compact ideal conditions */}
+        {selectedCrop && (() => {
+          const cropData = POLYHOUSE_CROP_CONDITIONS.find(c => c.cropName === selectedCrop);
+          if (!cropData) return null;
+          
+          return (
+            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+                <div>Air: {cropData.idealAirTemperature.min}-{cropData.idealAirTemperature.max}°C</div>
+                <div>Humidity: {cropData.idealAirHumidity.min}-{cropData.idealAirHumidity.max}%</div>
+                <div>Soil: {cropData.idealSoilTemperature.min}-{cropData.idealSoilTemperature.max}°C</div>
+              </div>
+              {cropData.notes && (
+                <div className="mt-1 text-blue-600 dark:text-blue-400 text-xs">{cropData.notes}</div>
+              )}
+            </div>
+          );
+        })()}
+      </Card>
+
+      {/* Compact Thresholds */}
       <Tabs defaultValue="air" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="air" className="flex items-center gap-2">
-            <Wind className="h-4 w-4" />
-            Air Node Sensors
+        <TabsList className="grid w-full grid-cols-2 h-9">
+          <TabsTrigger value="air" className="flex items-center gap-2 text-sm">
+            <Wind className="h-3 w-3" />
+            Air Sensors
           </TabsTrigger>
-          <TabsTrigger value="soil" className="flex items-center gap-2">
-            <TreePine className="h-4 w-4" />
-            Soil Node Sensors
+          <TabsTrigger value="soil" className="flex items-center gap-2 text-sm">
+            <TreePine className="h-3 w-3" />
+            Soil Sensors
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="air" className="space-y-4 mt-6">
-          <div className="grid gap-4">
+        <TabsContent value="air" className="mt-4">
+          <div className="grid gap-3">
             {airSensors.map(sensorKey => 
               renderThresholdSlider(sensorKey, thresholds[sensorKey])
             )}
           </div>
         </TabsContent>
         
-        <TabsContent value="soil" className="space-y-4 mt-6">
-          <div className="grid gap-4">
+        <TabsContent value="soil" className="mt-4">
+          <div className="grid gap-3">
             {soilSensors.map(sensorKey => 
               renderThresholdSlider(sensorKey, thresholds[sensorKey])
             )}
@@ -343,32 +430,45 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
         </TabsContent>
       </Tabs>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 pt-4 border-t">
+      {/* Compact Action Buttons */}
+      <div className="flex gap-2 pt-3 border-t">
         <Button 
           onClick={saveThresholds} 
           disabled={!hasChanges}
-          className="flex-1"
+          className="flex-1 h-9"
+          size="sm"
         >
           Save Thresholds
         </Button>
         <Button 
           variant="outline" 
           onClick={resetToDefaults}
+          size="sm"
+          className="h-9"
         >
-          Reset to Defaults
+          Reset
         </Button>
       </div>
 
       {hasChanges && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            ⚠️ You have unsaved changes. Click "Save Thresholds" to apply them to the dashboard, AI analysis, and reports.
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+          <p className="text-xs text-yellow-800 dark:text-yellow-200">
+            ⚠️ Unsaved changes. Click "Save Thresholds" to apply.
           </p>
         </div>
       )}
     </div>
   );
+}
+
+// Export function to get current selected crop
+export function getSelectedCrop(): string {
+  try {
+    return localStorage.getItem(CROP_STORAGE_KEY) || "";
+  } catch (error) {
+    console.error("Error loading selected crop:", error);
+    return "";
+  }
 }
 
 // Export function to get current thresholds for use in other components
@@ -397,10 +497,18 @@ export function getStoredThresholds(): Record<string, SensorThreshold> {
 // Export function for status calculation using stored thresholds
 export function getStatusWithThresholds(
   value: number, 
-  type: 'temperature' | 'humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture'
+  type: 'temperature' | 'humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'air_temperature' | 'air_humidity' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture'
 ): 'healthy' | 'warning' | 'critical' {
   const thresholds = getStoredThresholds();
-  const threshold = thresholds[type];
+  
+  // Map air sensor types to the threshold keys
+  const typeMap: Record<string, string> = {
+    'air_temperature': 'temperature',
+    'air_humidity': 'humidity'
+  };
+  
+  const thresholdKey = typeMap[type] || type;
+  const threshold = thresholds[thresholdKey];
   
   if (!threshold) return 'healthy';
   

@@ -15,13 +15,79 @@ export default function Reports() {
   // Clear all sensor records
   const clearAllRecords = async () => {
     if (!window.confirm('Are you sure you want to delete all sensor records? This action cannot be undone.')) return;
-  const { error } = await supabase.from('sensor_readings').delete().gt('timestamp', '1900-01-01');
-    if (error) {
+    
+    try {
+      console.log('🗑️ Starting delete all records...');
+      
+      // First check how many records exist
+      const { count } = await supabase
+        .from('sensor_readings')
+        .select('*', { count: 'exact', head: true });
+      
+      console.log('📊 Total records found:', count);
+      
+      if (count === 0) {
+        toast.info('No records to delete');
+        return;
+      }
+      
+      // Try multiple delete approaches
+      console.log('🔄 Attempting bulk delete...');
+      
+      // Method 1: Delete in batches
+      let deletedCount = 0;
+      const batchSize = 1000;
+      let hasMoreRecords = true;
+      
+      while (hasMoreRecords) {
+        const { data: batch, error: fetchError } = await supabase
+          .from('sensor_readings')
+          .select('id')
+          .limit(batchSize);
+        
+        if (fetchError) {
+          console.error('Fetch error:', fetchError);
+          break;
+        }
+        
+        if (!batch || batch.length === 0) {
+          hasMoreRecords = false;
+          break;
+        }
+        
+        const ids = batch.map(record => record.id);
+        
+        const { error: deleteError } = await supabase
+          .from('sensor_readings')
+          .delete()
+          .in('id', ids);
+        
+        if (deleteError) {
+          console.error('Batch delete error:', deleteError);
+          toast.error('Failed to delete records: ' + deleteError.message);
+          return;
+        }
+        
+        deletedCount += batch.length;
+        console.log(`✅ Deleted batch of ${batch.length} records (Total: ${deletedCount})`);
+        
+        // If we got less than batchSize, we're done
+        if (batch.length < batchSize) {
+          hasMoreRecords = false;
+        }
+      }
+      
+      console.log('✅ Delete completed');
+      toast.success(`Successfully deleted ${deletedCount} sensor records`);
+      
+      // Force refresh the page to update all components
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Delete operation failed:', err);
       toast.error('Failed to delete records');
-    } else {
-      toast.success('All sensor records deleted');
-      // Refetch data
-      window.location.reload();
     }
   };
   const { user } = useAuth();

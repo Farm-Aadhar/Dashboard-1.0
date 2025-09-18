@@ -12,6 +12,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useTheme } from "@/hooks/useTheme";
+import { SimulatorControlPanel } from "@/components/dashboard/SimulatorControlPanel";
+import { WeatherApiMonitor } from "@/components/dashboard/WeatherApiMonitor";
+import { ThresholdSettings } from "@/components/settings/ThresholdSettings";
+import GlobalThresholdManager from "@/components/settings/GlobalThresholdManager";
 import { Settings as SettingsIcon, User, Palette, Globe, Bell, Shield, LogOut } from "lucide-react";
 
 interface UserProfile {
@@ -57,6 +61,22 @@ export default function Settings() {
       return data as UserProfile | null;
     },
     enabled: !!user
+  });
+
+  // Fetch latest sensor data for calibration
+  const { data: latestSensorData } = useQuery({
+    queryKey: ['latest-sensor-data'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('sensor_readings')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(1);
+      
+      if (error) throw error;
+      return data[0] || null;
+    },
+    refetchInterval: 30000 // Refetch every 30 seconds
   });
 
   // Update profile data when profile is loaded
@@ -176,162 +196,182 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div className="flex items-center gap-2">
         <SettingsIcon className="h-6 w-6" />
         <h1 className="text-2xl font-bold">{t('Settings')}</h1>
       </div>
 
-      {/* Profile Settings */}
+      {/* Consolidated User Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
-            {t('Profile Information')}
+            {t('User Settings')}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">{t('Full Name')}</Label>
-              <Input
-                id="name"
-                value={profileData.name}
-                onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                placeholder={t('Enter your full name')}
-              />
+        <CardContent className="space-y-6">
+          {/* Profile Information Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Profile Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="name" className="text-xs">{t('Full Name')}</Label>
+                <Input
+                  id="name"
+                  value={profileData.name}
+                  onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                  placeholder={t('Enter your full name')}
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs">{t('Email')}</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={profileData.email}
+                  onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                  placeholder={t('Enter your email')}
+                  className="h-8"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('Email')}</Label>
-              <Input
-                id="email"
-                type="email"
-                value={profileData.email}
-                onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                placeholder={t('Enter your email')}
-              />
+            <div className="space-y-1">
+              <Label htmlFor="role" className="text-xs">{t('Role')}</Label>
+              <Select value={profileData.role} onValueChange={(value) => setProfileData({ ...profileData, role: value })}>
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="farmer">{t('Farmer')}</SelectItem>
+                  <SelectItem value="manager">{t('Farm Manager')}</SelectItem>
+                  <SelectItem value="technician">{t('Technician')}</SelectItem>
+                  <SelectItem value="admin">{t('Administrator')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="role">{t('Role')}</Label>
-            <Select value={profileData.role} onValueChange={(value) => setProfileData({ ...profileData, role: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="farmer">{t('Farmer')}</SelectItem>
-                <SelectItem value="manager">{t('Farm Manager')}</SelectItem>
-                <SelectItem value="technician">{t('Technician')}</SelectItem>
-                <SelectItem value="admin">{t('Administrator')}</SelectItem>
-              </SelectContent>
-            </Select>
+
+          <Separator />
+
+          {/* Appearance & Language Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Appearance & Language
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">{t('Dark Mode')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('Toggle between themes')}
+                  </p>
+                </div>
+                <Switch checked={theme === 'dark'} onCheckedChange={handleThemeToggle} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">{t('Language')}</Label>
+                <Select value={language} onValueChange={handleLanguageChange}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="hi">हिंदी (Hindi)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-          <Button onClick={handleSaveProfile} disabled={updateProfileMutation.isPending}>
-            {updateProfileMutation.isPending ? t('Saving...') : t('Save Profile')}
+
+          <Separator />
+
+          {/* Notifications Section */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">{t('Email Alerts')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('Receive alerts via email')}
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationSettings.emailAlerts}
+                  onCheckedChange={(checked) =>
+                    setNotificationSettings({ ...notificationSettings, emailAlerts: checked })
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">{t('Push Notifications')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('Receive push notifications in browser')}
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationSettings.pushNotifications}
+                  onCheckedChange={(checked) =>
+                    setNotificationSettings({ ...notificationSettings, pushNotifications: checked })
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">{t('Weekly Reports')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('Receive weekly summary reports')}
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationSettings.weeklyReports}
+                  onCheckedChange={(checked) =>
+                    setNotificationSettings({ ...notificationSettings, weeklyReports: checked })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Save Button */}
+          <Button onClick={handleSaveProfile} disabled={updateProfileMutation.isPending} className="w-full">
+            {updateProfileMutation.isPending ? t('Saving...') : t('Save All Settings')}
           </Button>
         </CardContent>
       </Card>
 
-      {/* Appearance Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            {t('Appearance')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>{t('Dark Mode')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('Toggle between light and dark themes')}
-              </p>
-            </div>
-            <Switch checked={theme === 'dark'} onCheckedChange={handleThemeToggle} />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Global Threshold Management */}
+      <GlobalThresholdManager latestSensorData={latestSensorData} />
 
-      {/* Language Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            {t('Language & Region')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>{t('Language')}</Label>
-            <Select value={language} onValueChange={handleLanguageChange}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="hi">हिंदी (Hindi)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Legacy Threshold Settings (for backwards compatibility) */}
+      <ThresholdSettings />
 
-      {/* Notification Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            {t('Notifications')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>{t('Email Alerts')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('Receive alerts via email')}
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.emailAlerts}
-              onCheckedChange={(checked) =>
-                setNotificationSettings({ ...notificationSettings, emailAlerts: checked })
-              }
-            />
+      {/* Development Tools - Only in Development Mode */}
+      {process.env.NODE_ENV === 'development' && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Sensor Simulator Controls */}
+            <SimulatorControlPanel />
+            
+            {/* Weather API Usage Monitor */}
+            <WeatherApiMonitor />
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>{t('Push Notifications')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('Receive push notifications in browser')}
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.pushNotifications}
-              onCheckedChange={(checked) =>
-                setNotificationSettings({ ...notificationSettings, pushNotifications: checked })
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>{t('Weekly Reports')}</Label>
-              <p className="text-sm text-muted-foreground">
-                {t('Receive weekly summary reports')}
-              </p>
-            </div>
-            <Switch
-              checked={notificationSettings.weeklyReports}
-              onCheckedChange={(checked) =>
-                setNotificationSettings({ ...notificationSettings, weeklyReports: checked })
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
+        </>
+      )}
 
-      {/* Account Actions */}
+      {/* Compact Account Actions */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -339,11 +379,11 @@ export default function Settings() {
             {t('Account')}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <Label>{t('Account Status')}</Label>
-              <p className="text-sm text-muted-foreground">
+              <Label className="text-sm">{t('Account Status')}</Label>
+              <p className="text-xs text-muted-foreground">
                 {t('Your account is active and verified')}
               </p>
             </div>
@@ -354,13 +394,13 @@ export default function Settings() {
           <Separator />
           <div className="flex items-center justify-between">
             <div>
-              <Label className="text-red-600">{t('Sign Out')}</Label>
-              <p className="text-sm text-muted-foreground">
+              <Label className="text-red-600 text-sm">{t('Sign Out')}</Label>
+              <p className="text-xs text-muted-foreground">
                 {t('Sign out of your account')}
               </p>
             </div>
-            <Button variant="outline" onClick={handleSignOut} className="text-red-600 border-red-200 hover:bg-red-50">
-              <LogOut className="h-4 w-4 mr-2" />
+            <Button variant="outline" onClick={handleSignOut} className="text-red-600 border-red-200 hover:bg-red-50 h-8">
+              <LogOut className="h-3 w-3 mr-2" />
               {t('Sign Out')}
             </Button>
           </div>

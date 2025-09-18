@@ -1,73 +1,118 @@
-# Welcome to your Lovable project
+# Farm Insight Garden Dashboard
 
-## Project info
+## Overview
+Farm Insight Garden is a web-based dashboard designed to monitor, analyze, and control ESP-based sensor nodes deployed in agricultural environments. The platform provides real-time data visualization, device management, and AI-powered insights to help optimize farm operations.
 
-**URL**: https://lovable.dev/projects/024b1601-b89e-468d-87dc-6e688bf3108b
+---
 
-## How can I edit this code?
+## Project Structure
 
-There are several ways of editing your application.
+- **src/**: Main React app source code
+  - **components/**: UI components (dashboard, layout, settings, etc.)
+  - **api/**: API handlers for ESP data and database control
+  - **contexts/**: React context providers (e.g., Auth)
+  - **hooks/**: Custom React hooks
+  - **integrations/**: Third-party integrations (e.g., Supabase)
+  - **lib/**: Utility functions
+  - **pages/**: App pages
+  - **utils/**: Shared utilities
+- **public/**: Static assets and API endpoints
+  - **api/**: Serverless API scripts for ESP data/status
+- **ESP Codes/**: Arduino sketches for ESP sensor nodes
+- **supabase/**: Supabase configuration and migrations
+- **scripts/**: Utility scripts (e.g., update ESP status)
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/024b1601-b89e-468d-87dc-6e688bf3108b) and start prompting.
+## How Things Work
 
-Changes made via Lovable will be committed automatically to this repo.
+### 1. ESP Sensor Nodes
+- ESP Data Collection Nodes collect comprehensive environmental data (e.g., soil moisture, air quality, temperature, humidity).
+- Data is sent to the backend via HTTP endpoints or direct database integration.
 
-**Use your preferred IDE**
+### 2. Data Collection & Storage
+- Data from ESP nodes is received by serverless API endpoints (`public/api/esp-data.js`, `public/api/esp-status.js`).
+- Data is stored in a Supabase database for persistence and querying.
+- **Weather API Integration**: External weather data from OpenWeatherMap validates sensor readings and improves reliability analysis.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 3. Data Validation & Reliability
+- **Weather Service**: Compares sensor data with external weather API to detect outliers and assess reliability.
+- **Smart Validation**: Accounts for greenhouse effects while flagging unrealistic readings.
+- **Reliability Scoring**: Provides confidence levels for sensor data accuracy.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 3. Dashboard & Visualization
+- The React dashboard (`src/components/dashboard/`) fetches and displays sensor data in real-time.
+- Users can view device status, historical trends, and threshold alerts.
+- **Weather Widget**: Shows external weather conditions alongside sensor validation results.
 
-Follow these steps:
+### 4. Settings & Control
+- Thresholds for sensor alerts can be configured in the settings panel (`src/components/settings/ThresholdSettings.tsx`).
+- Control commands can be sent to ESP nodes for remote management.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 5. AI Analysis
+- The GeminiAnalysis component provides AI-powered insights and recommendations based on collected data.
+- **Enhanced with Weather Data**: AI analysis now includes external weather validation for more accurate assessments.
+- **Crop-Specific Insights**: Provides recommendations tailored to the selected crop type.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 6. Authentication
+- User authentication is managed via Supabase (`src/contexts/AuthContext.tsx`).
 
-# Step 3: Install the necessary dependencies.
-npm i
+---
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## Development Flow
 
-**Edit a file directly in GitHub**
+1. **Frontend**: Built with React, TypeScript, Tailwind CSS, and Vite.
+2. **Backend/API**: Serverless functions in `public/api/` handle ESP data and status updates.
+3. **Database**: Supabase is used for authentication and data storage.
+4. **ESP Firmware**: Arduino sketches in `ESP Codes/` control sensor nodes.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## Getting Started
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. **Install dependencies**
+   ```sh
+   bun install
+   ```
+2. **Configure Environment Variables**
+   - Copy `.env.example` to `.env`
+   - Add your API keys:
+     - `VITE_GEMINI_API_KEY`: Get from Google AI Studio
+     - `VITE_OPENWEATHER_API_KEY`: Get from OpenWeatherMap
+     - Supabase credentials
+3. **Start the development server**
+   ```sh
+   bun run dev
+   ```
+4. **Configure Supabase**
+   - Update `supabase/config.toml` with your credentials.
+5. **Deploy ESP Nodes**
+   - Flash the sketches in `ESP Codes/` to your ESP devices.
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## Key Files
+- `src/App.tsx`: Main app entry point
+- `src/components/dashboard/`: Dashboard UI
+- `src/components/settings/ThresholdSettings.tsx`: Threshold settings
+- `public/api/esp-data.js`: ESP data API
+- `supabase/config.toml`: Supabase config
+- `ESP Codes/`: ESP firmware
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+---
 
-## How can I deploy this project?
+## Contributing
+1. Fork the repo
+2. Create a feature branch
+3. Commit and push your changes
+4. Open a pull request
 
-Simply open [Lovable](https://lovable.dev/projects/024b1601-b89e-468d-87dc-6e688bf3108b) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## License
+MIT License
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Contact
+For questions or support, contact the Farm Aadhar team.

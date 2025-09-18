@@ -1,7 +1,10 @@
 import React, { useState, memo, useCallback } from "react";
-import { AlertTriangle, TrendingUp, CheckCircle2, Activity, CloudSun, Gauge, BarChart3, Target } from "lucide-react";
+import { AlertTriangle, TrendingUp, CheckCircle2, Activity, CloudSun, Gauge, BarChart3, Target, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getAnalysis } from "../GeminiAnalysis"; // <-- updated API call
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getAnalysis } from "../GeminiAnalysis";
+import { TIME_RANGES } from '@/lib/geminiService';
 
 // Type for the response
 type AnalysisResponse = {
@@ -28,20 +31,21 @@ type TrendAnalysisProps = {
 const TrendAnalysis = memo(function TrendAnalysis({ farmData = [{ id: 1, sensor: 'test', value: 50 }] }: TrendAnalysisProps) {
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedTimeRange, setSelectedTimeRange] = useState('1hr');
 
   const handleAnalysis = useCallback(async () => {
     if (!farmData || farmData.length === 0) return;
     setLoading(true);
 
     try {
-      const result = await getAnalysis(farmData);
+      const result = await getAnalysis(farmData, selectedTimeRange);
       if (result) setAnalysis(result);
     } catch (err) {
       console.error("Analysis failed:", err);
     }
 
     setLoading(false);
-  }, [farmData]);
+  }, [farmData, selectedTimeRange]);
 
   // Helper function to determine color based on index value and type
   const getIndexColor = useCallback((value: any, type: string) => {
@@ -167,20 +171,41 @@ const TrendAnalysis = memo(function TrendAnalysis({ farmData = [{ id: 1, sensor:
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleAnalysis}
-              disabled={loading || !farmData}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-                  Analyzing...
-                </div>
-              ) : (
-                "Generate Analysis"
-              )}
-            </button>
+            
+            <div className="flex items-center gap-3">
+              {/* Time Range Selector */}
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Select time range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIME_RANGES.map((range) => (
+                      <SelectItem key={range.value} value={range.value}>
+                        {range.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Generate Analysis Button */}
+              <Button
+                onClick={handleAnalysis}
+                disabled={loading || !farmData}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 font-medium"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                    Analyzing...
+                  </div>
+                ) : (
+                  "Generate Analysis"
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -194,7 +219,7 @@ const TrendAnalysis = memo(function TrendAnalysis({ farmData = [{ id: 1, sensor:
             </div>
             <h3 className="text-lg font-medium text-foreground mb-2">Ready to Analyze Your Farm Data</h3>
             <p className="text-muted-foreground">
-              Click "Generate Analysis" to get detailed insights about your farm's performance and recommendations.
+              Select a time range and click "Generate Analysis" to get detailed insights about your farm's performance and recommendations for the selected period.
             </p>
           </div>
         </div>

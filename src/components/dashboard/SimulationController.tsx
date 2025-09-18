@@ -12,23 +12,24 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Database, Play, Square } from "lucide-react";
+import { Settings, Database, Play, Square, Cloud } from "lucide-react";
 import { ThresholdSettings } from "@/components/settings/ThresholdSettings";
 import { supabase } from "@/integrations/supabase/client";
+import { weatherBasedSimulation } from "@/lib/weatherBasedSimulation";
 
 // =========================
 // ⚠️ Replace this in production: call your own /api endpoint instead.
 // Never expose service role key to the browser.
 // =========================
-const SUPABASE_URL = "https://ghkcfgcyzhtwufizxuyo.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdoa2NmZ2N5emh0d3VmaXp4dXlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTY4NDYzMiwiZXhwIjoyMDcxMjYwNjMyfQ.romU2eJK__vtjLXOz6Au79vcFJo3Ia87xnARodpr3Ho";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://dlmqiqhwnxbffawfblrz.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsbXFpcWh3bnhiZmZhd2ZibHJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NjY5NTUsImV4cCI6MjA3MTI0Mjk1NX0.sBWR6-vYMPorGxSGx9eCgcDyRipwgUGg_B6svIltS5c";
 
 const API_ENDPOINT = `${SUPABASE_URL}/rest/v1/sensor_readings`;
 const API_HEADERS = {
   "Content-Type": "application/json",
-  apikey: SUPABASE_SERVICE_ROLE_KEY,
-  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  apikey: SUPABASE_PUBLISHABLE_KEY,
+  Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
 };
 
 // ---------- Helper function ----------
@@ -65,111 +66,28 @@ const LS_SPIKE_KEY = "simulation_spike_cfg_v2";
 // ---------- Global mutable state ----------
 let sensitivity: Sensitivity = { ...DEFAULT_SENSITIVITY };
 
-// ---------- Mock data generation ----------
-function generateMockDataWithTrend(timeInSeconds: number, spikeChance: number, spikeIntensity: number) {
-  // Time-based cycles for natural variation
-  const tempCycle = Math.sin((timeInSeconds * Math.PI) / 3600) * 0.3; // ~2 hour cycle
-  const humidityCycle = Math.cos((timeInSeconds * Math.PI) / 7200) * 0.2; // ~4 hour cycle
-  const airQualityCycle = Math.sin((timeInSeconds * Math.PI) / 5400) * 0.4; // ~3 hour cycle
-  const alcoholCycle = Math.sin((timeInSeconds * Math.PI) / 1800) * 0.15; // ~1 hour cycle  
-  const smokeCycle = Math.cos((timeInSeconds * Math.PI) / 2700) * 0.25; // ~1.5 hour cycle
-
-  // Sensitivity multipliers
-  const sensitivityMultiplier = {
-    air_temperature: sensitivity.air_temperature,
-    air_humidity: sensitivity.air_humidity,
-    air_air_quality_mq135: sensitivity.air_air_quality_mq135,
-    air_alcohol_mq3: sensitivity.air_alcohol_mq3,
-    air_smoke_mq2: sensitivity.air_smoke_mq2,
-    soil_temperature: sensitivity.soil_temperature,
-    soil_humidity: sensitivity.soil_humidity,
-    soil_moisture: sensitivity.soil_moisture,
-  };
-
-  // Value configurations with broader ranges and more realistic values
-  const valueConfigs = {
-    air_temperature: { base: 26, normalRange: 8, min: 5, max: 50 },
-    air_humidity: { base: 65, normalRange: 25, min: 10, max: 95 },
-    air_air_quality_mq135: { base: 2800, normalRange: 1200, min: 100, max: 5000 },
-    air_alcohol_mq3: { base: 1050, normalRange: 600, min: 50, max: 3000 },
-    air_smoke_mq2: { base: 2000, normalRange: 800, min: 100, max: 4000 },
-    soil_temperature: { base: 24, normalRange: 6, min: 5, max: 45 },
-    soil_humidity: { base: 70, normalRange: 20, min: 20, max: 90 },
-    soil_moisture: { base: 45, normalRange: 25, min: 10, max: 80 },
-  };
-
-  const generateValue = (key: keyof typeof valueConfigs, prevValue?: number) => {
-    const config = valueConfigs[key];
-    const sensitivityMult = sensitivityMultiplier[key];
-    
-    // Select appropriate cycle
-    let cycleInfluence = tempCycle;
-    switch (key) {
-      case "air_humidity":
-      case "soil_humidity":
-        cycleInfluence = humidityCycle;
-        break;
-      case "air_air_quality_mq135":
-        cycleInfluence = airQualityCycle;
-        break;
-      case "air_alcohol_mq3":
-        cycleInfluence = alcoholCycle;
-        break;
-      case "air_smoke_mq2":
-        cycleInfluence = smokeCycle;
-        break;
-    }
-    
-    // Calculate target value with independent cycle and sensitivity
-    const targetBase = config.base + (cycleInfluence * config.normalRange);
-    const targetValue = targetBase * sensitivityMult;
-    
-    // Add small random fluctuation (±3% of normal range, reduced from 5%)
-    const fluctuation = (Math.random() - 0.5) * config.normalRange * 0.06;
-    
-    // Gradually move towards target with some inertia (smooth transitions)
-    const inertia = 0.8; // How much of previous value to keep
-    const newValue = (prevValue || targetValue) * inertia + (targetValue * (1 - inertia)) + fluctuation;
-    
-    // Apply bounds
-    return clamp(newValue, config.min, config.max);
-  };
-
-  let air_temperature = generateValue("air_temperature");
-  let air_humidity = generateValue("air_humidity");
-  let air_air_quality_mq135 = generateValue("air_air_quality_mq135");
-  let air_alcohol_mq3 = generateValue("air_alcohol_mq3");
-  let air_smoke_mq2 = generateValue("air_smoke_mq2");
-  let soil_temperature = generateValue("soil_temperature");
-  let soil_humidity = generateValue("soil_humidity");
-  let soil_moisture = generateValue("soil_moisture");
-
-  // Random spikes
-  if (Math.random() < spikeChance) {
-    const spikeTargets = [
-      { key: 'air_temperature', ref: () => air_temperature *= spikeIntensity },
-      { key: 'air_humidity', ref: () => air_humidity *= spikeIntensity },
-      { key: 'air_air_quality_mq135', ref: () => air_air_quality_mq135 *= spikeIntensity },
-      { key: 'air_alcohol_mq3', ref: () => air_alcohol_mq3 *= spikeIntensity },
-      { key: 'air_smoke_mq2', ref: () => air_smoke_mq2 *= spikeIntensity },
-      { key: 'soil_temperature', ref: () => soil_temperature *= spikeIntensity },
-      { key: 'soil_humidity', ref: () => soil_humidity *= spikeIntensity },
-      { key: 'soil_moisture', ref: () => soil_moisture *= spikeIntensity },
-    ];
-    
-    const randomSpike = spikeTargets[Math.floor(Math.random() * spikeTargets.length)];
-    randomSpike.ref();
+// ---------- Weather-based Mock data generation ----------
+async function generateMockDataWithTrend(timeInSeconds: number, spikeChance: number, spikeIntensity: number) {
+  // Update sensitivity in the weather-based simulation service
+  weatherBasedSimulation.setSensitivity(sensitivity);
+  
+  // Initialize simulation if not already done
+  const currentState = weatherBasedSimulation.getCurrentState();
+  if (!currentState) {
+    await weatherBasedSimulation.initializeFromWeather();
   }
 
+  // Generate next data point
+  const data = weatherBasedSimulation.generateNext(timeInSeconds, spikeChance, spikeIntensity);
+  
   return {
-    air_temperature: Math.round(air_temperature * 10) / 10,
-    air_humidity: Math.round(air_humidity * 10) / 10,
-    air_air_quality_mq135: Math.round(air_air_quality_mq135),
-    air_alcohol_mq3: Math.round(air_alcohol_mq3),
-    air_smoke_mq2: Math.round(air_smoke_mq2),
-    soil_temperature: Math.round(soil_temperature * 10) / 10,
-    soil_humidity: Math.round(soil_humidity * 10) / 10,
-    soil_moisture: Math.round(soil_moisture * 10) / 10,
+    node_id: 'MANUAL_SIM_NODE',
+    temperature: Math.round(data.air_temperature * 10) / 10,
+    humidity: Math.round(data.air_humidity * 10) / 10,
+    air_quality_mq135: Math.round(data.air_air_quality_mq135),
+    alcohol_mq3: Math.round(data.air_alcohol_mq3),
+    smoke_mq2: Math.round(data.air_smoke_mq2),
+    soil_moisture: Math.round(data.soil_moisture * 10) / 10,
     timestamp: new Date().toISOString(),
   };
 }
@@ -180,6 +98,7 @@ export function SimulationController() {
   const [running, setRunning] = useState(false);
   const [espConnectionEnabled, setEspConnectionEnabled] = useState(false);
   const [isCollectionActive, setIsCollectionActive] = useState(false); // Simplified to boolean
+  const [weatherData, setWeatherData] = useState<any>(null);
   const timeRef = useRef(0);
   const { toast } = useToast();
 
@@ -221,6 +140,14 @@ export function SimulationController() {
         setIsCollectionActive(collectionMode === 'collecting' || collectionMode === 'continuous');
       }
     } catch {}
+    
+    // Load simulation running state
+    try {
+      const simulationState = localStorage.getItem('simulation_running');
+      if (simulationState) {
+        setRunning(simulationState === 'true');
+      }
+    } catch {}
   }, []);
 
   const sendData = async (timeInSeconds: number) => {
@@ -230,10 +157,22 @@ export function SimulationController() {
       return;
     }
     
-    const mockData = generateMockDataWithTrend(timeInSeconds, spikeChance, spikeIntensity);
+    const mockData = await generateMockDataWithTrend(timeInSeconds, spikeChance, spikeIntensity);
     try {
-      await axios.post(API_ENDPOINT, mockData, { headers: API_HEADERS });
+      const { error } = await supabase
+        .from('sensor_readings')
+        .insert([mockData]);
+      
+      if (error) {
+        console.error('Manual simulation error:', error);
+        toast({
+          title: "Simulation Error",
+          description: "Failed to push sensor data: " + error.message,
+          variant: "destructive"
+        });
+      }
     } catch (err) {
+      console.error('Manual simulation exception:', err);
       toast({
         title: "Simulation Error",
         description: "Failed to push sensor data.",
@@ -334,24 +273,54 @@ export function SimulationController() {
     await toggleDataCollection();
   };
 
-  const toggleSimulation = () => {
+  const toggleSimulation = async () => {
     if (!running) {
-      setRunning(true);
-      toast({
-        title: "Simulation Started",
-        description: "Sensor data simulation is now running.",
-        variant: "default"
-      });
-      intervalRef.current = setInterval(async () => {
-        await sendData(timeRef.current);
-        timeRef.current++;
-      }, 2000);
+      try {
+        toast({
+          title: "Initializing Simulation",
+          description: "Fetching weather data for realistic starting values...",
+        });
+
+        await weatherBasedSimulation.initializeFromWeather();
+        const baseWeather = weatherBasedSimulation.getBaseWeatherData();
+        setWeatherData(baseWeather);
+
+        setRunning(true);
+        localStorage.setItem('simulation_running', 'true');
+        
+        toast({
+          title: "Simulation Started",
+          description: baseWeather 
+            ? `Started with weather data from ${baseWeather.location.name} (${baseWeather.temperature}°C, ${baseWeather.humidity}%)`
+            : "Started with fallback values (weather data unavailable)",
+        });
+
+        intervalRef.current = setInterval(async () => {
+          await sendData(timeRef.current);
+          timeRef.current++;
+        }, 2000);
+      } catch (error) {
+        toast({
+          title: "Simulation Error",
+          description: "Failed to initialize with weather data. Using fallback values.",
+          variant: "destructive"
+        });
+        setRunning(true);
+        intervalRef.current = setInterval(async () => {
+          await sendData(timeRef.current);
+          timeRef.current++;
+        }, 2000);
+      }
     } else {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
       setRunning(false);
+      localStorage.setItem('simulation_running', 'false');
+      
+      weatherBasedSimulation.reset(); // Reset for next run
+      setWeatherData(null);
       toast({
         title: "Simulation Stopped",
         description: "Sensor data simulation has stopped.",
@@ -411,6 +380,23 @@ export function SimulationController() {
       <Button variant="outline" size="sm" onClick={toggleSimulation}>
         {running ? "Stop Simulation" : "Start Simulation"}
       </Button>
+
+      {/* Weather Status Indicator */}
+      {running && weatherData && (
+        <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-md text-sm">
+          <Cloud className="h-4 w-4 text-blue-600" />
+          <span className="text-blue-800">
+            {weatherData.location.name}: {weatherData.temperature}°C, {weatherData.humidity}%
+          </span>
+        </div>
+      )}
+
+      {running && !weatherData && (
+        <div className="flex items-center gap-2 px-3 py-1 bg-orange-50 border border-orange-200 rounded-md text-sm">
+          <Cloud className="h-4 w-4 text-orange-600" />
+          <span className="text-orange-800">Using fallback values</span>
+        </div>
+      )}
 
       {/* Data Collection Toggle Button */}
       <Button 

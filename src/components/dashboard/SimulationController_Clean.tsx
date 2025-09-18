@@ -19,15 +19,15 @@ import { supabase } from "@/integrations/supabase/client";
 // ⚠️ Replace this in production: call your own /api endpoint instead.
 // Never expose service role key to the browser.
 // =========================
-const SUPABASE_URL = "https://ghkcfgcyzhtwufizxuyo.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdoa2NmZ2N5emh0d3VmaXp4dXlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTY4NDYzMiwiZXhwIjoyMDcxMjYwNjMyfQ.romU2eJK__vtjLXOz6Au79vcFJo3Ia87xnARodpr3Ho";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://dlmqiqhwnxbffawfblrz.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsbXFpcWh3bnhiZmZhd2ZibHJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NjY5NTUsImV4cCI6MjA3MTI0Mjk1NX0.sBWR6-vYMPorGxSGx9eCgcDyRipwgUGg_B6svIltS5c";
 
 const API_ENDPOINT = `${SUPABASE_URL}/rest/v1/sensor_readings`;
 const API_HEADERS = {
   "Content-Type": "application/json",
-  apikey: SUPABASE_SERVICE_ROLE_KEY,
-  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  apikey: SUPABASE_PUBLISHABLE_KEY,
+  Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
 };
 
 const LS_SENS_KEY = "simulation_sensitivity";
