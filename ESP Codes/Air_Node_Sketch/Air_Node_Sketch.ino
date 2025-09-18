@@ -82,7 +82,7 @@ const int WIFI_NETWORK_COUNT = 2;
 // SUPABASE DATABASE CONFIGURATION
 // ============================================================================
 
-const char* SUPABASE_URL = "https://ghkcfgcyzhtwufizxuyo.supabase.co";
+const char* SUPABASE_URL = "https://dlmqiqhwnxbffawfblrz.supabase.co";
 const char* SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdoa2NmZ2N5emh0d3VmaXp4dXlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTY4NDYzMiwiZXhwIjoyMDcxMjYwNjMyfQ.romU2eJK__vtjLXOz6Au79vcFJo3Ia87xnARodpr3Ho";
 const char* SUPABASE_ENDPOINT = "/rest/v1/sensor_readings";
 

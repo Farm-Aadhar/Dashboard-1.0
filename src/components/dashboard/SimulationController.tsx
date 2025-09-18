@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,22 +16,7 @@ import { Settings, Database, Play, Square } from "lucide-react";
 import { ThresholdSettings } from "@/components/settings/ThresholdSettings";
 import { supabase } from "@/integrations/supabase/client";
 
-// =========================
-// ⚠️ Replace this in production: call your own /api endpoint instead.
-// Never expose service role key to the browser.
-// =========================
-const SUPABASE_URL = "https://ghkcfgcyzhtwufizxuyo.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdoa2NmZ2N5emh0d3VmaXp4dXlvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTY4NDYzMiwiZXhwIjoyMDcxMjYwNjMyfQ.romU2eJK__vtjLXOz6Au79vcFJo3Ia87xnARodpr3Ho";
-
-const API_ENDPOINT = `${SUPABASE_URL}/rest/v1/sensor_readings`;
-const API_HEADERS = {
-  "Content-Type": "application/json",
-  apikey: SUPABASE_SERVICE_ROLE_KEY,
-  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-};
-
-// ---------- Helper function ----------
+// Helper function
 const clamp = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(max, value));
 };
@@ -231,12 +216,34 @@ export function SimulationController() {
     }
     
     const mockData = generateMockDataWithTrend(timeInSeconds, spikeChance, spikeIntensity);
+    
+    // Transform mock data to match database schema
+    const dbData = {
+      node_id: 'simulation-node',
+      temperature: mockData.air_temperature,
+      humidity: mockData.air_humidity,
+      air_quality_mq135: mockData.air_air_quality_mq135,
+      alcohol_mq3: mockData.air_alcohol_mq3,
+      smoke_mq2: mockData.air_smoke_mq2,
+      timestamp: mockData.timestamp
+    };
+    
     try {
-      await axios.post(API_ENDPOINT, mockData, { headers: API_HEADERS });
+      const { error } = await supabase
+        .from('sensor_readings')
+        .insert(dbData);
+      
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Sensor data inserted successfully:', dbData);
     } catch (err) {
+      console.error('Database insert failed:', err);
       toast({
         title: "Simulation Error",
-        description: "Failed to push sensor data.",
+        description: "Failed to push sensor data to database.",
         variant: "destructive"
       });
     }
@@ -431,6 +438,9 @@ export function SimulationController() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Farm Settings</DialogTitle>
+            <DialogDescription>
+              Configure simulation parameters and threshold settings for your farm monitoring system.
+            </DialogDescription>
           </DialogHeader>
 
           <Tabs defaultValue="simulation" className="w-full">

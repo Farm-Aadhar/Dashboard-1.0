@@ -77,37 +77,39 @@ class ThresholdService {
    */
   async getThresholdPresets(): Promise<ThresholdPreset[]> {
     try {
-      // Return crop-specific presets until database migration is done
+      console.log('Fetching threshold presets from database...');
+      const { data, error } = await supabase
+        .from('threshold_presets')
+        .select('*')
+        .eq('is_active', true)
+        .order('is_system_default', { ascending: false })
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching threshold presets:', error);
+        throw error;
+      }
+
+      console.log('Found database presets:', data);
+      return (data || []) as ThresholdPreset[];
+    } catch (error) {
+      console.error('Error loading threshold presets from database:', error);
+      
+      // Fallback to hardcoded presets if database fails
       return [
         {
           id: 'system-default',
           name: 'System Default',
           description: 'Default safe threshold values',
-          category: 'system_default',
+          category: 'system_default' as PresetCategory,
           is_active: true,
           is_system_default: true
         },
         {
           id: 'tomato-cultivation',
           name: 'Tomato Cultivation',
-          description: 'Optimized for tomato cultivation',
-          category: 'crop',
-          is_active: true,
-          is_system_default: false
-        },
-        {
-          id: 'lettuce-cultivation',
-          name: 'Lettuce Cultivation',
-          description: 'Ideal for lettuce and leafy greens',
-          category: 'crop',
-          is_active: true,
-          is_system_default: false
-        },
-        {
-          id: 'mushroom-cultivation',
-          name: 'Mushroom Cultivation',
           description: 'Specialized for mushroom cultivation',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -115,7 +117,7 @@ class ThresholdService {
           id: 'capsicum-cultivation',
           name: 'Capsicum Cultivation',
           description: 'Optimized for colored capsicum/bell peppers',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -123,7 +125,7 @@ class ThresholdService {
           id: 'cucumber-cultivation',
           name: 'Cucumber Cultivation',
           description: 'Ideal for cucumber and vine crops',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -131,7 +133,7 @@ class ThresholdService {
           id: 'spinach-cultivation',
           name: 'Spinach Cultivation',
           description: 'Perfect for spinach and leafy greens',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -139,7 +141,7 @@ class ThresholdService {
           id: 'rose-cultivation',
           name: 'Rose Cultivation',
           description: 'Specialized for rose floriculture',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -147,7 +149,7 @@ class ThresholdService {
           id: 'gerbera-cultivation',
           name: 'Gerbera Cultivation',
           description: 'Optimized for gerbera flowers',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -155,7 +157,7 @@ class ThresholdService {
           id: 'carnation-cultivation',
           name: 'Carnation Cultivation',
           description: 'Ideal for carnation floriculture',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -163,7 +165,7 @@ class ThresholdService {
           id: 'strawberry-cultivation',
           name: 'Strawberry Cultivation',
           description: 'Perfect for strawberry fruit production',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         },
@@ -171,14 +173,11 @@ class ThresholdService {
           id: 'papaya-cultivation',
           name: 'Papaya Cultivation',
           description: 'Optimized for papaya fruit growing',
-          category: 'crop',
+          category: 'crop' as PresetCategory,
           is_active: true,
           is_system_default: false
         }
       ];
-    } catch (error) {
-      console.error('Error fetching threshold presets:', error);
-      throw error;
     }
   }
 
@@ -313,6 +312,93 @@ class ThresholdService {
   /**
    * Get preset threshold values
    */
+  /**
+   * Get preset threshold values from database
+   */
+  async getPresetThresholdValues(presetId: string): Promise<Record<string, LegacySensorThreshold> | null> {
+    try {
+      console.log('Fetching preset threshold values for:', presetId);
+      
+      const { data, error } = await (supabase as any)
+        .from('threshold_presets')
+        .select('*')
+        .eq('id', presetId)
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        console.error('Error fetching preset:', error);
+        return null;
+      }
+
+      if (!data) {
+        console.warn('No preset found for ID:', presetId);
+        return null;
+      }
+
+      console.log('Found preset data:', data);
+
+      // Convert database preset to legacy threshold format
+      const presetThresholds: Record<string, LegacySensorThreshold> = {
+        temperature: {
+          low: parseFloat(data.ideal_daytime_temp_min || '15'),
+          high: parseFloat(data.ideal_daytime_temp_max || '35'),
+          unit: "°C",
+          label: "Air Temperature",
+          icon: "thermometer",
+          min: 0,
+          max: 50,
+          step: 0.5
+        },
+        humidity: {
+          low: parseFloat(data.ideal_humidity_min || '30'),
+          high: parseFloat(data.ideal_humidity_max || '80'),
+          unit: "%",
+          label: "Air Humidity",
+          icon: "droplets",
+          min: 0,
+          max: 100,
+          step: 1
+        },
+        air_quality_mq135: {
+          low: 0,
+          high: 999999, // Will be calibrated based on current readings
+          unit: "ppm",
+          label: "Air Quality (MQ135)",
+          icon: "wind",
+          min: 0,
+          max: 5000,
+          step: 50
+        },
+        alcohol_mq3: {
+          low: 0,
+          high: 999999, // Will be calibrated based on current readings
+          unit: "ppm",
+          label: "Alcohol (MQ3)",
+          icon: "activity",
+          min: 0,
+          max: 3000,
+          step: 50
+        },
+        smoke_mq2: {
+          low: 0,
+          high: 999999, // Will be calibrated based on current readings
+          unit: "ppm",
+          label: "Smoke (MQ2)",
+          icon: "flame",
+          min: 0,
+          max: 4000,
+          step: 50
+        }
+      };
+
+      return presetThresholds;
+    } catch (error) {
+      console.error('Error fetching preset threshold values:', error);
+      return null;
+    }
+  }
+
   getPresetThresholds(presetId: string): Record<string, LegacySensorThreshold> {
     const presets: Record<string, Record<string, LegacySensorThreshold>> = {
       'system-default': {
@@ -405,64 +491,143 @@ class ThresholdService {
   }
 
   /**
-   * Apply a preset to current thresholds
+   * Apply a preset to current thresholds - Simple approach
    */
   async applyPreset(presetId: string): Promise<void> {
     try {
-      const presetThresholds = this.getPresetThresholds(presetId);
-      const STORAGE_KEY = "sensor_thresholds_v1";
+      console.log('Applying preset to current_thresholds table:', presetId);
       
-      // For gas sensors (air_quality, alcohol, smoke), we need to calibrate based on current readings
-      // if the preset has high values of 999999 (indicating relative values)
-      const needsCalibration = Object.values(presetThresholds).some(threshold => 
-        threshold.high === 999999 && ['air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'].includes(threshold.icon.replace('_', ''))
-      );
+      // 1. Get preset data from database
+      const { data: preset, error: presetError } = await (supabase as any)
+        .from('threshold_presets')
+        .select('*')
+        .eq('id', presetId)
+        .eq('is_active', true)
+        .single();
 
-      let finalThresholds = { ...presetThresholds };
+      if (presetError || !preset) {
+        throw new Error(`Preset not found: ${presetId}`);
+      }
 
-      if (needsCalibration) {
-        try {
-          // Get latest sensor readings for gas sensor calibration
-          const latestReading = await this.getLatestSensorReadings();
-          
-          if (latestReading) {
-            // Calibrate gas sensors based on current readings
-            const gasSensorMappings = [
-              { key: 'air_quality_mq135', value: latestReading.air_quality_mq135 },
-              { key: 'alcohol_mq3', value: latestReading.alcohol_mq3 },
-              { key: 'smoke_mq2', value: latestReading.smoke_mq2 }
-            ];
+      console.log('Found preset:', preset);
 
-            for (const sensor of gasSensorMappings) {
-              if (sensor.value !== null && finalThresholds[sensor.key] && finalThresholds[sensor.key].high === 999999) {
-                const currentValue = sensor.value;
-                const lowMargin = (currentValue * 5) / 100; // 5% below current
-                const highMargin = (currentValue * 15) / 100; // 15% above current
-                
-                finalThresholds[sensor.key] = {
-                  ...finalThresholds[sensor.key],
-                  low: Math.max(0, currentValue - lowMargin),
-                  high: currentValue + highMargin
-                };
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('Could not calibrate gas sensors, using preset defaults:', error);
-          // Use safe defaults for gas sensors if calibration fails
-          if (finalThresholds.air_quality_mq135?.high === 999999) {
-            finalThresholds.air_quality_mq135 = { ...finalThresholds.air_quality_mq135, low: 0, high: 1000 };
-          }
-          if (finalThresholds.alcohol_mq3?.high === 999999) {
-            finalThresholds.alcohol_mq3 = { ...finalThresholds.alcohol_mq3, low: 0, high: 500 };
-          }
-          if (finalThresholds.smoke_mq2?.high === 999999) {
-            finalThresholds.smoke_mq2 = { ...finalThresholds.smoke_mq2, low: 0, high: 800 };
-          }
+      // 2. Get last sensor reading for missing values
+      const lastReading = await this.getLatestSensorReadings();
+      console.log('Last sensor reading:', lastReading);
+
+      // 3. Define what values to update in current_thresholds
+      const updates = [];
+
+      // Temperature (from preset)
+      if (preset.ideal_daytime_temp_min && preset.ideal_daytime_temp_max) {
+        updates.push({
+          sensor_type: 'air_temperature' as SensorType,
+          low_value: parseFloat(preset.ideal_daytime_temp_min),
+          high_value: parseFloat(preset.ideal_daytime_temp_max),
+          unit: '°C',
+          label: 'Air Temperature',
+          icon: 'thermometer',
+          min_value: 0,
+          max_value: 50,
+          step_value: 0.5
+        });
+      }
+
+      // Humidity (from preset) 
+      if (preset.ideal_humidity_min && preset.ideal_humidity_max) {
+        updates.push({
+          sensor_type: 'air_humidity' as SensorType,
+          low_value: parseFloat(preset.ideal_humidity_min),
+          high_value: parseFloat(preset.ideal_humidity_max),
+          unit: '%',
+          label: 'Air Humidity',
+          icon: 'droplets',
+          min_value: 0,
+          max_value: 100,
+          step_value: 1
+        });
+      }
+
+      // Air Quality (±3% of last reading)
+      if (lastReading?.air_quality_mq135) {
+        const reading = lastReading.air_quality_mq135;
+        const margin = reading * 0.03; // 3%
+        updates.push({
+          sensor_type: 'air_quality_mq135' as SensorType,
+          low_value: Math.max(0, reading - margin),
+          high_value: reading + margin,
+          unit: 'ppm',
+          label: 'Air Quality (MQ135)',
+          icon: 'wind',
+          min_value: 0,
+          max_value: 5000,
+          step_value: 50
+        });
+      }
+
+      // Alcohol (±3% of last reading)
+      if (lastReading?.alcohol_mq3) {
+        const reading = lastReading.alcohol_mq3;
+        const margin = reading * 0.03; // 3%
+        updates.push({
+          sensor_type: 'alcohol_mq3' as SensorType,
+          low_value: Math.max(0, reading - margin),
+          high_value: reading + margin,
+          unit: 'ppm',
+          label: 'Alcohol (MQ3)',
+          icon: 'activity',
+          min_value: 0,
+          max_value: 3000,
+          step_value: 50
+        });
+      }
+
+      // Smoke (±3% of last reading)
+      if (lastReading?.smoke_mq2) {
+        const reading = lastReading.smoke_mq2;
+        const margin = reading * 0.03; // 3%
+        updates.push({
+          sensor_type: 'smoke_mq2' as SensorType,
+          low_value: Math.max(0, reading - margin),
+          high_value: reading + margin,
+          unit: 'ppm',
+          label: 'Smoke (MQ2)',
+          icon: 'flame',
+          min_value: 0,
+          max_value: 4000,
+          step_value: 50
+        });
+      }
+
+      console.log('Updating current_thresholds with:', updates);
+
+      // 4. Update current_thresholds table for each sensor
+      for (const update of updates) {
+        const { error: updateError } = await (supabase as any)
+          .from('current_thresholds')
+          .upsert({
+            sensor_type: update.sensor_type,
+            low_value: update.low_value,
+            high_value: update.high_value,
+            unit: update.unit,
+            label: update.label,
+            icon: update.icon,
+            min_value: update.min_value,
+            max_value: update.max_value,
+            step_value: update.step_value,
+            source_type: 'preset'
+          }, {
+            onConflict: 'sensor_type'
+          });
+
+        if (updateError) {
+          console.error(`Error updating ${update.sensor_type}:`, updateError);
+          throw updateError;
         }
       }
+
+      console.log(`✅ Preset "${preset.name}" applied successfully to current_thresholds!`);
       
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalThresholds));
     } catch (error) {
       console.error('Error applying preset:', error);
       throw error;
