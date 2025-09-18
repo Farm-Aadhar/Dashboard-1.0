@@ -28,9 +28,6 @@ interface SensorReading {
   air_air_quality_mq135?: number;
   air_alcohol_mq3?: number;
   air_smoke_mq2?: number;
-  soil_temperature?: number;
-  soil_humidity?: number;
-  soil_moisture?: number;
   // fallback for old fields
   temperature?: number;
   humidity?: number;
@@ -45,7 +42,7 @@ const Index = () => {
   const [latestData, setLatestData] = useState<SensorReading | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedGraph, setSelectedGraph] = useState('ppm');
+  const [selectedGraph, setSelectedGraph] = useState('air');
 
   const fetchSensorData = useCallback(async () => {
     try {
@@ -70,9 +67,8 @@ const Index = () => {
       if (readings && readings.length > 0) {
         const chartData = readings.reverse().map(reading => ({
           time: new Date(reading.timestamp).toLocaleTimeString(),
-          temperature: ((reading as any).soil_temperature ?? reading.temperature) ?? 0,
-          humidity: ((reading as any).soil_humidity ?? reading.humidity) ?? 0,
-          soilMoisture: reading.soil_moisture ?? 0,
+          temperature: reading.temperature ?? 0,
+          humidity: reading.humidity ?? 0,
           airTemperature: ((reading as any).air_temperature ?? reading.temperature) ?? 0,
           airHumidity: ((reading as any).air_humidity ?? reading.humidity) ?? 0,
           airQuality: ((reading as any).air_air_quality_mq135 ?? reading.air_quality_mq135) ?? 0,
@@ -103,9 +99,8 @@ const Index = () => {
     setChartData(prev => {
       const newDataPoint = {
         time: new Date(newReading.timestamp).toLocaleTimeString(),
-        temperature: newReading.soil_temperature ?? newReading.temperature ?? 0,
-        humidity: newReading.soil_humidity ?? newReading.humidity ?? 0,
-        soilMoisture: newReading.soil_moisture ?? 0,
+        temperature: newReading.temperature ?? 0,
+        humidity: newReading.humidity ?? 0,
         airTemperature: newReading.air_temperature ?? newReading.temperature ?? 0,
         airHumidity: newReading.air_humidity ?? newReading.humidity ?? 0,
         airQuality: newReading.air_air_quality_mq135 ?? newReading.air_quality_mq135 ?? 0,
@@ -217,12 +212,11 @@ const Index = () => {
     };
   }, [user, authLoading]);
 
-  const getStatus = useCallback((value: number, type: 'air_temperature' | 'air_humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture' | 'temperature' | 'humidity' | 'soil' | 'air' | 'alcohol' | 'smoke' | 'airquality') => {
+  const getStatus = useCallback((value: number, type: 'air_temperature' | 'air_humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'temperature' | 'humidity' | 'air' | 'alcohol' | 'smoke' | 'airquality') => {
     // Map legacy types to new threshold types
     const thresholdTypeMap = {
       'temperature': 'air_temperature',
       'humidity': 'air_humidity', 
-      'soil': 'soil_moisture',
       'air': 'air_quality_mq135',
       'alcohol': 'alcohol_mq3',
       'smoke': 'smoke_mq2',
@@ -232,7 +226,7 @@ const Index = () => {
     const mappedType = thresholdTypeMap[type as keyof typeof thresholdTypeMap] || type;
     
     // Use the dynamic threshold system if available
-    if (['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2', 'soil_temperature', 'soil_humidity', 'soil_moisture'].includes(mappedType)) {
+    if (['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'].includes(mappedType)) {
       return getStatusWithThresholds(value, mappedType as any);
     }
     
@@ -245,10 +239,6 @@ const Index = () => {
       case 'humidity':
         if (value < 30 || value > 85) return 'critical';
         if (value < 40 || value > 80) return 'warning';
-        return 'healthy';
-      case 'soil':
-        if (value < 15 || value > 85) return 'critical';
-        if (value < 25 || value > 75) return 'warning';
         return 'healthy';
       case 'airquality':
         if (value > 3500) return 'critical';
@@ -273,20 +263,20 @@ const Index = () => {
 
   // Memoize chart props to prevent unnecessary re-renders
   const chartProps = useMemo(() => ({
-    ppm: {
+    air: {
       data: chartData,
-      title: "Air Values (Temperature, Humidity, Air Quality, Alcohol, Smoke)",
-      lines: ["airTemperature", "airHumidity", "airQuality", "alcohol", "smoke"]
+      title: "Air Sensor Values (Temperature, Humidity, Air Quality)",
+      lines: ["airTemperature", "airHumidity", "airQuality"]
     },
-    soil: {
+    gases: {
       data: chartData,
-      title: "Soil Values (Moisture, Temperature, Humidity)",
-      lines: ["soilMoisture", "temperature", "humidity"]
+      title: "Gas Sensor Values (Air Quality, Alcohol, Smoke)",
+      lines: ["airQuality", "alcohol", "smoke"]
     },
     compare: {
       data: chartData,
-      title: "Air vs Soil Comparison (Temperature & Humidity)",
-      lines: ["airTemperature", "airHumidity", "temperature", "humidity"],
+      title: "Air Sensors Comparison (All Values)",
+      lines: ["airTemperature", "airHumidity", "airQuality", "alcohol", "smoke"],
       colorScheme: "blue-orange" as const
     }
   }), [chartData]);
@@ -315,44 +305,11 @@ const Index = () => {
 ">
         <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
           <SensorCard
-            title="Soil Level Temp"
-            value={((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0).toFixed(1)}
-            unit="°C"
-            icon={<Thermometer className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.soil_temperature ?? latestData?.temperature ?? 0, 'soil_temperature')}
-            sensorType="soil_temperature"
-            trend={{ value: 5, type: 'up' }}
-          />
-        </div>
-        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
-          <SensorCard
-            title="Soil Moisture"
-            value={latestData?.soil_moisture?.toFixed(1) || '0.0'}
-            unit="%"
-            icon={<TreePine className="h-5 w-5" />}
-            status={getStatus(latestData?.soil_moisture ?? 0, 'soil_moisture')}
-            sensorType="soil_moisture"
-            trend={{ value: 8, type: 'up' }}
-          />
-        </div>
-        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
-          <SensorCard
-            title="Soil Level Humidity"
-            value={((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0).toFixed(1)}
-            unit="%"
-            icon={<Droplets className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.soil_humidity ?? latestData?.humidity ?? 0, 'soil_humidity')}
-            sensorType="soil_humidity"
-            trend={{ value: 2, type: 'down' }}
-          />
-        </div>
-        <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
-          <SensorCard
             title="Air Temp"
-            value={((latestData as any)?.air_temperature ?? 0).toFixed(1)}
+            value={((latestData as any)?.air_temperature ?? latestData?.temperature ?? 0).toFixed(1)}
             unit="°C"
             icon={<Thermometer className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_temperature ?? 0, 'air_temperature')}
+            status={getStatus((latestData as any)?.air_temperature ?? latestData?.temperature ?? 0, 'air_temperature')}
             sensorType="air_temperature"
             trend={{ value: 4, type: 'up' }}
           />
@@ -360,10 +317,10 @@ const Index = () => {
         <div className="flex flex-col gap-4 w-full sm:w-1/2 lg:w-1/4 min-w-[220px]">
           <SensorCard
             title="Air Humidity"
-            value={((latestData as any)?.air_humidity ?? 0).toFixed(1)}
+            value={((latestData as any)?.air_humidity ?? latestData?.humidity ?? 0).toFixed(1)}
             unit="%"
             icon={<CloudDrizzle className="h-5 w-5" />}
-            status={getStatus((latestData as any)?.air_humidity ?? 0, 'air_humidity')}
+            status={getStatus((latestData as any)?.air_humidity ?? latestData?.humidity ?? 0, 'air_humidity')}
             sensorType="air_humidity"
             trend={{ value: 3, type: 'down' }}
           />
@@ -409,9 +366,9 @@ const Index = () => {
       <div className="my-8">
         <div className="flex border-b border-border mb-6">
           {[
-            { key: 'soil', label: 'Soil Values' },
-            { key: 'ppm', label: 'Air Values' },
-            { key: 'compare', label: 'Air vs Soil' }
+            { key: 'air', label: 'Air Sensors' },
+            { key: 'gases', label: 'Gas Sensors' },
+            { key: 'compare', label: 'All Sensors' }
           ].map(tab => (
             <button
               key={tab.key}
@@ -432,11 +389,11 @@ const Index = () => {
           ))}
         </div>
 
-        {selectedGraph === 'ppm' && (
-          <SensorChart {...chartProps.ppm} />
+        {selectedGraph === 'air' && (
+          <SensorChart {...chartProps.air} />
         )}
-        {selectedGraph === 'soil' && (
-          <SensorChart {...chartProps.soil} />
+        {selectedGraph === 'gases' && (
+          <SensorChart {...chartProps.gases} />
         )}
         {selectedGraph === 'compare' && (
           <SensorChart {...chartProps.compare} />

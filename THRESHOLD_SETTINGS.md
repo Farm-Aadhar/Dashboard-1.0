@@ -7,7 +7,6 @@ A comprehensive threshold management system for sensor values that allows users 
 
 ### 🎛️ Configurable Thresholds
 - **Air Node Sensors**: Temperature, Humidity, Air Quality (MQ135), Alcohol (MQ3), Smoke (MQ2)
-- **Soil Node Sensors**: Temperature, Humidity, Moisture
 - **Individual Control**: Each sensor has separate low and high threshold sliders
 - **Real-time Preview**: Live status zones showing Critical → Healthy → Critical ranges
 
@@ -30,8 +29,8 @@ A comprehensive threshold management system for sensor values that allows users 
 
 ### Accessing Threshold Settings
 1. Navigate to **Settings** page
-2. Scroll to the **Sensor Thresholds** section
-3. Choose between **Air Node Sensors** and **Soil Node Sensors** tabs
+2. Scroll to the **Threshold Settings** section
+3. Configure thresholds for Air Node Sensors
 
 ### Configuring Thresholds
 1. **Low Threshold (Orange)**: Values below this trigger warnings/critical status
@@ -73,10 +72,7 @@ getSensorStatus(value: number, sensorType: string): 'healthy' | 'warning' | 'cri
   air_humidity: { low: 40, high: 80, unit: "%" },
   air_quality_mq135: { low: 1000, high: 3000, unit: "ppm" },
   alcohol_mq3: { low: 500, high: 1200, unit: "ppm" },
-  smoke_mq2: { low: 1000, high: 2200, unit: "ppm" },
-  soil_temperature: { low: 20, high: 32, unit: "°C" },
-  soil_humidity: { low: 40, high: 80, unit: "%" },
-  soil_moisture: { low: 25, high: 75, unit: "%" }
+  smoke_mq2: { low: 1000, high: 2200, unit: "ppm" }
 }
 ```
 

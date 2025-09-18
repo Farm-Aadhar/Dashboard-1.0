@@ -106,8 +106,8 @@ export default function AIAnalysis() {
           category: "pest_control"
         },
         {
-          text: "Soil moisture levels are optimal. Continue current irrigation schedule.",
-          category: "irrigation"
+          text: "Air humidity levels are optimal for plant growth. Maintain current ventilation settings.",
+          category: "environment"
         }
       ];
 

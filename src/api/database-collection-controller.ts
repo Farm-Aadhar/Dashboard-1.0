@@ -104,7 +104,6 @@ export class DatabaseCollectionController {
         node_id: 'test-node',
         temperature: 25.0,
         humidity: 60.0,
-        soil_moisture: 40.0,
         air_quality_mq135: 2500,
         alcohol_mq3: 1000,
         smoke_mq2: 1800,

@@ -91,36 +91,6 @@ export const DEFAULT_THRESHOLDS = {
     min: 0,
     max: 4000,
     step: 50
-  },
-  soil_temperature: {
-    low: 15,
-    high: 45,
-    unit: "°C",
-    label: "Soil Temperature",
-    icon: "thermometer",
-    min: 0,
-    max: 50,
-    step: 0.5
-  },
-  soil_humidity: {
-    low: 25,
-    high: 85,
-    unit: "%",
-    label: "Soil Humidity",
-    icon: "droplets",
-    min: 0,
-    max: 100,
-    step: 1
-  },
-  soil_moisture: {
-    low: 25,
-    high: 75,
-    unit: "%",
-    label: "Soil Moisture",
-    icon: "treepine",
-    min: 0,
-    max: 100,
-    step: 1
   }
 };
 
@@ -186,13 +156,13 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
       onThresholdsChange?.(thresholds);
       
       toast({
-        title: "Thresholds Saved",
+        title: "Settings Saved",
         description: "Sensor threshold values have been updated successfully.",
         variant: "default"
       });
     } catch (error) {
       toast({
-        title: "Error Saving Thresholds",
+        title: "Error Saving Settings",
         description: "Failed to save threshold settings. Please try again.",
         variant: "destructive"
       });
@@ -303,45 +273,30 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
   };
 
   const airSensors = ['temperature', 'humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'];
-  const soilSensors = ['soil_temperature', 'soil_humidity', 'soil_moisture'];
 
   return (
     <div className="space-y-6">
       <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">
-        <p className="font-medium mb-1">Configure sensor thresholds:</p>
+        <p className="font-medium mb-1">Configure threshold settings:</p>
         <p className="text-xs">
           Set warning and critical thresholds for all sensors. Values outside these ranges will trigger alerts in the dashboard, AI analysis, and reports.
         </p>
       </div>
 
-      <Tabs defaultValue="air" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="air" className="flex items-center gap-2">
-            <Wind className="h-4 w-4" />
-            Air Node Sensors
-          </TabsTrigger>
-          <TabsTrigger value="soil" className="flex items-center gap-2">
-            <TreePine className="h-4 w-4" />
-            Soil Node Sensors
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="air" className="space-y-4 mt-6">
-          <div className="grid gap-4">
-            {airSensors.map(sensorKey => 
-              renderThresholdSlider(sensorKey, thresholds[sensorKey])
-            )}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="soil" className="space-y-4 mt-6">
-          <div className="grid gap-4">
-            {soilSensors.map(sensorKey => 
-              renderThresholdSlider(sensorKey, thresholds[sensorKey])
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+      <div className="space-y-6">
+        <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">
+          <p className="font-medium mb-1">Air Node Threshold Settings:</p>
+          <p className="text-xs">
+            Set warning and critical thresholds for air sensors. Values outside these ranges will trigger alerts in the dashboard, AI analysis, and reports.
+          </p>
+        </div>
+
+        <div className="grid gap-4">
+          {airSensors.map(sensorKey => 
+            renderThresholdSlider(sensorKey, thresholds[sensorKey])
+          )}
+        </div>
+      </div>
 
       {/* Action Buttons */}
       <div className="flex gap-2 pt-4 border-t">
@@ -350,7 +305,7 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
           disabled={!hasChanges}
           className="flex-1"
         >
-          Save Thresholds
+          Save Settings
         </Button>
         <Button 
           variant="outline" 
@@ -363,7 +318,7 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
       {hasChanges && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
           <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            ⚠️ You have unsaved changes. Click "Save Thresholds" to apply them to the dashboard, AI analysis, and reports.
+            ⚠️ You have unsaved changes. Click "Save Settings" to apply them to the dashboard, AI analysis, and reports.
           </p>
         </div>
       )}
@@ -397,7 +352,7 @@ export function getStoredThresholds(): Record<string, SensorThreshold> {
 // Export function for status calculation using stored thresholds
 export function getStatusWithThresholds(
   value: number, 
-  type: 'temperature' | 'humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2' | 'soil_temperature' | 'soil_humidity' | 'soil_moisture'
+  type: 'temperature' | 'humidity' | 'air_quality_mq135' | 'alcohol_mq3' | 'smoke_mq2'
 ): 'healthy' | 'warning' | 'critical' {
   const thresholds = getStoredThresholds();
   const threshold = thresholds[type];

@@ -33,20 +33,9 @@ const generateMockDataWithTrend = (nodeId, timeInSeconds) => {
         timestamp: new Date().toISOString(),
     };
 
-    if (nodeId.includes('soil')) {
-        // Soil node: slightly different temp/humidity
-        data.temperature = getRandomNumber(22 + trendFactor, 25 + trendFactor);
-        data.humidity = getRandomNumber(55 - trendFactor, 62 - trendFactor);
-        // Soil moisture: never allow 0%
-        let moisture = getRandomNumber(40 + trendFactor * 1.5, 50 + trendFactor * 1.5);
-        data.soil_moisture = moisture < 5 ? 5 : moisture; // minimum 5%
-    } else {
-        // Air node: slightly different temp/humidity
-        data.temperature = getRandomNumber(24 + trendFactor, 27 + trendFactor);
-        data.humidity = getRandomNumber(58 - trendFactor, 65 - trendFactor);
-        // Explicitly set soil_moisture to null for air nodes to match the schema
-        data.soil_moisture = null;
-    }
+    // Air node: temperature and humidity readings
+    data.temperature = getRandomNumber(24 + trendFactor, 27 + trendFactor);
+    data.humidity = getRandomNumber(58 - trendFactor, 65 - trendFactor);
 
     // Introduce a sudden spike for anomaly detection demo
     if (timeInSeconds === 30 || timeInSeconds === 45) {
@@ -71,32 +60,17 @@ const sendData = async (nodeId, timeInSeconds) => {
     }
 };
 
-// Main loop to send data for both nodes every second until manually stopped
+// Main loop to send data for air nodes every second until manually stopped
 const startSimulation = () => {
-    console.log("Starting continuous data simulation... Press Ctrl+C to stop.");
+    console.log("Starting continuous data simulation for air nodes... Press Ctrl+C to stop.");
         let timeInSeconds = 0;
-        // Store previous soil moisture value
-        let prevSoilMoisture = 45;
 
         setInterval(async () => {
             // Send data for air node
-            await sendData('air_node', timeInSeconds);
-
-            // Generate soil node data
-            let soilData = generateMockDataWithTrend('soil_node', timeInSeconds);
-            // If soil_moisture is null or less than 5%, use previous non-zero value
-            if (soilData.soil_moisture == null || soilData.soil_moisture < 5) {
-                soilData.soil_moisture = prevSoilMoisture;
-            } else {
-                prevSoilMoisture = soilData.soil_moisture;
-            }
-            // Send data for soil node
-            try {
-                await axios.post(API_ENDPOINT, soilData, { headers: API_HEADERS });
-                console.log(`Successfully sent data for soil_node at second ${timeInSeconds}`);
-            } catch (error) {
-                console.error(`Failed to send data for soil_node:`, error.message);
-            }
+            await sendData('air_node_1', timeInSeconds);
+            
+            // Send data for second air node for diversity
+            await sendData('air_node_2', timeInSeconds);
 
             timeInSeconds++;
         }, 2000); // Send data every 2 seconds

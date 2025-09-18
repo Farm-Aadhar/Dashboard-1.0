@@ -17,9 +17,6 @@ export function getSensorStatus(
   const typeMapping: Record<string, string> = {
     'temperature': 'air_temperature',
     'humidity': 'air_humidity',
-    'soil_temp': 'soil_temperature',
-    'soil_humidity': 'soil_humidity',
-    'soil_moisture': 'soil_moisture',
     'air_quality': 'air_quality_mq135',
     'alcohol': 'alcohol_mq3',
     'smoke': 'smoke_mq2'
@@ -28,7 +25,7 @@ export function getSensorStatus(
   const mappedType = typeMapping[sensorType] || sensorType;
   
   // Use threshold-based status if available
-  if (['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2', 'soil_temperature', 'soil_humidity', 'soil_moisture'].includes(mappedType)) {
+  if (['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'].includes(mappedType)) {
     return getStatusWithThresholds(value, mappedType as any);
   }
   

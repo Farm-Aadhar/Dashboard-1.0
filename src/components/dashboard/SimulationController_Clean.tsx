@@ -350,7 +350,7 @@ export function SimulationController() {
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Simulation Settings</DialogTitle>
+            <DialogTitle>Simulation Sensitivity</DialogTitle>
           </DialogHeader>
 
           <div className="py-4">

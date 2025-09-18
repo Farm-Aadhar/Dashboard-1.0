@@ -151,7 +151,6 @@ export type Database = {
           id: string
           node_id: string
           smoke_mq2: number | null
-          soil_moisture: number | null
           temperature: number | null
           timestamp: string | null
         }
@@ -162,7 +161,6 @@ export type Database = {
           id?: string
           node_id: string
           smoke_mq2?: number | null
-          soil_moisture?: number | null
           temperature?: number | null
           timestamp?: string | null
         }
@@ -173,9 +171,161 @@ export type Database = {
           id?: string
           node_id?: string
           smoke_mq2?: number | null
-          soil_moisture?: number | null
           temperature?: number | null
           timestamp?: string | null
+        }
+        Relationships: []
+      }
+      data_collection_settings: {
+        Row: {
+          id: number
+          collection_enabled: boolean | null
+          collection_mode: string | null
+          updated_at: string | null
+          updated_by: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: number
+          collection_enabled?: boolean | null
+          collection_mode?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: number
+          collection_enabled?: boolean | null
+          collection_mode?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      threshold_presets: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          category: string
+          is_active: boolean | null
+          is_system_default: boolean | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          category?: string
+          is_active?: boolean | null
+          is_system_default?: boolean | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          category?: string
+          is_active?: boolean | null
+          is_system_default?: boolean | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      threshold_values: {
+        Row: {
+          id: string
+          preset_id: string | null
+          sensor_type: string
+          low_value: number
+          high_value: number
+          unit: string
+          label: string
+          icon: string | null
+          min_value: number | null
+          max_value: number | null
+          step_value: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          preset_id?: string | null
+          sensor_type: string
+          low_value: number
+          high_value: number
+          unit: string
+          label: string
+          icon?: string | null
+          min_value?: number | null
+          max_value?: number | null
+          step_value?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          preset_id?: string | null
+          sensor_type?: string
+          low_value?: number
+          high_value?: number
+          unit?: string
+          label?: string
+          icon?: string | null
+          min_value?: number | null
+          max_value?: number | null
+          step_value?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      threshold_change_log: {
+        Row: {
+          id: string
+          preset_id: string | null
+          sensor_type: string
+          change_type: string | null
+          previous_low: number | null
+          previous_high: number | null
+          new_low: number | null
+          new_high: number | null
+          changed_by: string | null
+          change_reason: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          preset_id?: string | null
+          sensor_type: string
+          change_type?: string | null
+          previous_low?: number | null
+          previous_high?: number | null
+          new_low?: number | null
+          new_high?: number | null
+          changed_by?: string | null
+          change_reason?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          preset_id?: string | null
+          sensor_type?: string
+          change_type?: string | null
+          previous_low?: number | null
+          previous_high?: number | null
+          new_low?: number | null
+          new_high?: number | null
+          changed_by?: string | null
+          change_reason?: string | null
+          created_at?: string | null
         }
         Relationships: []
       }

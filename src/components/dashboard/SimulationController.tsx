@@ -434,10 +434,9 @@ export function SimulationController() {
           </DialogHeader>
 
           <Tabs defaultValue="simulation" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="simulation">Simulation Settings</TabsTrigger>
-              <TabsTrigger value="thresholds">Sensor Thresholds</TabsTrigger>
-              <TabsTrigger value="database">Database Control</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="simulation">Simulation Sensitivity</TabsTrigger>
+              <TabsTrigger value="thresholds">Threshold Settings</TabsTrigger>
             </TabsList>
             
             <TabsContent value="simulation" className="space-y-4 mt-6">
@@ -526,7 +525,7 @@ export function SimulationController() {
                 <Button variant="outline" onClick={() => setSettingsOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleApplySettings}>Apply Simulation Settings</Button>
+                <Button onClick={handleApplySettings}>Apply Simulation Sensitivity</Button>
               </DialogFooter>
             </TabsContent>
             
@@ -536,105 +535,6 @@ export function SimulationController() {
                   // Optional: Add any additional logic when thresholds change
                 }}
               />
-            </TabsContent>
-            
-            <TabsContent value="database" className="space-y-4 mt-6">
-              <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">
-                <p className="font-medium mb-1">Database Collection Control:</p>
-                <p className="text-xs">
-                  Control whether ESP nodes send data to the database. This affects storage usage and data collection.
-                </p>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Data Collection Control</h3>
-                  
-                  <div className="grid gap-3">
-                    <div 
-                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                        !isCollectionActive 
-                          ? 'border-red-300 bg-red-50 dark:bg-red-900/20' 
-                          : 'border-border hover:border-red-300'
-                      }`}
-                      onClick={() => toggleDataCollection()}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Square className="h-5 w-5 text-red-600" />
-                        <div>
-                          <h4 className="font-medium text-red-700 dark:text-red-300">
-                            {isCollectionActive ? "Stop Collection" : "✅ Collection Stopped"}
-                          </h4>
-                          <p className="text-xs text-red-600 dark:text-red-400">
-                            ESP nodes will not send any data to database. Saves storage space.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div 
-                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                        isCollectionActive 
-                          ? 'border-green-300 bg-green-50 dark:bg-green-900/20' 
-                          : 'border-border hover:border-green-300'
-                      }`}
-                      onClick={() => toggleDataCollection()}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Play className="h-5 w-5 text-green-600" />
-                        <div>
-                          <h4 className="font-medium text-green-700 dark:text-green-300">
-                            {!isCollectionActive ? "Start Collection" : "✅ Collection Active"}
-                          </h4>
-                          <p className="text-xs text-green-600 dark:text-green-400">
-                            ESP nodes will send data to database normally for monitoring.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h3 className="text-sm font-semibold mb-3">Current Status</h3>
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30">
-                    <Database className="h-5 w-5" />
-                    <div>
-                      <p className="font-medium">
-                        {isCollectionActive ? "Data collection is active" : "Data collection is stopped"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        ESP nodes will {isCollectionActive ? 'send' : 'not send'} data to the database
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h3 className="text-sm font-semibold mb-3">Collection Status Test</h3>
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      Check the current collection status and verify simulation respects the setting
-                    </p>
-                    <Button 
-                      onClick={testDatabaseCollection}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Check Collection Status
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h3 className="text-sm font-semibold mb-3">ESP Node Communication</h3>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>• ESP nodes check the status every 30 seconds</p>
-                    <p>• Changes take effect within 30 seconds on ESP nodes</p>
-                    <p>• Database trigger blocks inserts immediately when stopped</p>
-                  </div>
-                </div>
-              </div>
             </TabsContent>
           </Tabs>
         </DialogContent>

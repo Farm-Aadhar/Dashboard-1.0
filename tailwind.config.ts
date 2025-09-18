@@ -72,7 +72,6 @@ export default {
 				// Sensor colors
 				temperature: 'hsl(var(--temperature))',
 				humidity: 'hsl(var(--humidity))',
-				soil: 'hsl(var(--soil))',
 				'air-quality': 'hsl(var(--air-quality))',
 				healthy: 'hsl(var(--healthy))',
 				critical: 'hsl(var(--critical))',
