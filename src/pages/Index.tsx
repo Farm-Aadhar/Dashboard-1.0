@@ -43,7 +43,7 @@ const Index = () => {
   const [latestData, setLatestData] = useState<SensorReading | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedGraph, setSelectedGraph] = useState('air');
+  const [selectedGraph, setSelectedGraph] = useState('temperature');
   const [currentThresholds, setCurrentThresholds] = useState<any>({});
 
   // Load current thresholds
@@ -261,24 +261,6 @@ const Index = () => {
   }, [currentThresholds]);
 
   // Memoize chart props to prevent unnecessary re-renders
-  const chartProps = useMemo(() => ({
-    air: {
-      data: chartData,
-      title: "Air Sensor Values (Temperature, Humidity, Air Quality)",
-      lines: ["airTemperature", "airHumidity", "airQuality"]
-    },
-    gases: {
-      data: chartData,
-      title: "Gas Sensor Values (Air Quality, Alcohol, Smoke)",
-      lines: ["airQuality", "alcohol", "smoke"]
-    },
-    compare: {
-      data: chartData,
-      title: "Air Sensors Comparison (All Values)",
-      lines: ["airTemperature", "airHumidity", "airQuality", "alcohol", "smoke"],
-      colorScheme: "blue-orange" as const
-    }
-  }), [chartData]);
   if (authLoading || loading) {
     return (
       <div className="space-y-6">
@@ -366,17 +348,19 @@ const Index = () => {
       {/* Trend Analysis Widget */}
         <TrendAnalysis farmData={chartData.slice(-10)} />
 
-      {/* Graph Selector Tabs */}
+      {/* Individual Sensor Graph Tabs */}
       <div className="my-8">
-        <div className="flex border-b border-border mb-6">
+        <div className="flex border-b border-border mb-6 overflow-x-auto">
           {[
-            { key: 'air', label: 'Air Sensors' },
-            { key: 'gases', label: 'Gas Sensors' },
-            { key: 'compare', label: 'All Sensors' }
+            { key: 'temperature', label: 'Temperature', icon: '🌡️' },
+            { key: 'humidity', label: 'Humidity', icon: '💧' },
+            { key: 'airquality', label: 'Air Quality', icon: '🌬️' },
+            { key: 'alcohol', label: 'Alcohol', icon: '🧪' },
+            { key: 'smoke', label: 'Smoke', icon: '🔥' }
           ].map(tab => (
             <button
               key={tab.key}
-              className={`px-6 py-2 font-medium focus:outline-none transition-colors duration-150
+              className={`px-4 py-2 font-medium focus:outline-none transition-colors duration-150 flex items-center gap-2 whitespace-nowrap
                 ${selectedGraph === tab.key
                   ? 'border-b-2 border-primary text-primary bg-card'
                   : 'text-muted-foreground hover:text-primary'}
@@ -388,19 +372,51 @@ const Index = () => {
               }}
               onClick={() => setSelectedGraph(tab.key)}
             >
-              {tab.label}
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
-        {selectedGraph === 'air' && (
-          <SensorChart {...chartProps.air} />
+        {selectedGraph === 'temperature' && (
+          <SensorChart 
+            data={chartData}
+            title="Temperature Sensor Data"
+            lines={["airTemperature"]}
+            colorScheme="mixed"
+          />
         )}
-        {selectedGraph === 'gases' && (
-          <SensorChart {...chartProps.gases} />
+        {selectedGraph === 'humidity' && (
+          <SensorChart 
+            data={chartData}
+            title="Humidity Sensor Data"
+            lines={["airHumidity"]}
+            colorScheme="mixed"
+          />
         )}
-        {selectedGraph === 'compare' && (
-          <SensorChart {...chartProps.compare} />
+        {selectedGraph === 'airquality' && (
+          <SensorChart 
+            data={chartData}
+            title="Air Quality Sensor Data"
+            lines={["airQuality"]}
+            colorScheme="mixed"
+          />
+        )}
+        {selectedGraph === 'alcohol' && (
+          <SensorChart 
+            data={chartData}
+            title="Alcohol Sensor Data"
+            lines={["alcohol"]}
+            colorScheme="mixed"
+          />
+        )}
+        {selectedGraph === 'smoke' && (
+          <SensorChart 
+            data={chartData}
+            title="Smoke Sensor Data"
+            lines={["smoke"]}
+            colorScheme="mixed"
+          />
         )}
       </div>
       {/* Past Records Table */}

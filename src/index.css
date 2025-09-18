@@ -187,7 +187,7 @@ All colors are in HSL format for semantic theming
   }
 
   .status-warning {
-    @apply bg-warning text-warning-foreground;
+    @apply bg-red-500 text-white;
   }
 
   .status-critical {

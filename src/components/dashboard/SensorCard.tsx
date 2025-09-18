@@ -29,7 +29,7 @@ const statusConfig = {
   warning: {
     badge: 'status-warning',
     text: 'Warning',
-    color: 'text-warning'
+    color: 'text-red-600'
   },
   critical: {
     badge: 'status-critical',
@@ -105,7 +105,7 @@ function getThresholdStatus(value: number, sensorType: string, currentThresholds
   if (numericValue < (threshold.low || 0)) {
     return { 
       text: range, 
-      color: 'text-blue-600', 
+      color: 'text-red-600', 
       icon: '↓', 
       range,
       source
