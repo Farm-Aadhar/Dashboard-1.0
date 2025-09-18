@@ -7,6 +7,7 @@ import { SensorChart } from '@/components/dashboard/SensorChart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PastRecordsTable } from '@/components/dashboard/PastRecordsTable';
 import { getStatusWithThresholds } from '@/components/settings/ThresholdSettings';
+import { thresholdService } from '@/api/threshold-service';
 import {
   Thermometer,
   Droplets,
@@ -43,6 +44,21 @@ const Index = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGraph, setSelectedGraph] = useState('air');
+  const [currentThresholds, setCurrentThresholds] = useState<any>({});
+
+  // Load current thresholds
+  useEffect(() => {
+    const loadThresholds = async () => {
+      try {
+        const thresholds = await thresholdService.getCurrentThresholds();
+        setCurrentThresholds(thresholds);
+      } catch (error) {
+        console.error('Error loading thresholds:', error);
+      }
+    };
+    
+    loadThresholds();
+  }, []);
 
   const fetchSensorData = useCallback(async () => {
     try {
@@ -225,41 +241,24 @@ const Index = () => {
 
     const mappedType = thresholdTypeMap[type as keyof typeof thresholdTypeMap] || type;
     
-    // Use the dynamic threshold system if available
-    if (['air_temperature', 'air_humidity', 'air_quality_mq135', 'alcohol_mq3', 'smoke_mq2'].includes(mappedType)) {
+    // Use database thresholds if available
+    if (currentThresholds[mappedType]) {
+      const threshold = currentThresholds[mappedType];
+      if (value < threshold.low || value > threshold.high) {
+        return 'critical';
+      }
+      // Warning zone (within 10% of thresholds)
+      const range = threshold.high - threshold.low;
+      const warningMargin = range * 0.1;
+      if (value <= threshold.low + warningMargin || value >= threshold.high - warningMargin) {
+        return 'warning';
+      }
+      return 'healthy';
+    } else {
+      // Fallback to legacy threshold function
       return getStatusWithThresholds(value, mappedType as any);
     }
-    
-    // Fallback to hardcoded values for any unmapped types
-    switch (type) {
-      case 'temperature':
-        if (value < 18 || value > 35) return 'critical';
-        if (value < 20 || value > 32) return 'warning';
-        return 'healthy';
-      case 'humidity':
-        if (value < 30 || value > 85) return 'critical';
-        if (value < 40 || value > 80) return 'warning';
-        return 'healthy';
-      case 'airquality':
-        if (value > 3500) return 'critical';
-        if (value > 3000) return 'warning';
-        return 'healthy';
-      case 'alcohol':
-        if (value > 1500) return 'critical';
-        if (value > 1200) return 'warning';
-        return 'healthy';
-      case 'smoke':
-        if (value > 2500) return 'critical';
-        if (value > 2200) return 'warning';
-        return 'healthy';
-      case 'air':
-        if (value > 3500) return 'critical';
-        if (value > 3000) return 'warning';
-        return 'healthy';
-      default:
-        return 'healthy';
-    }
-  }, []);
+  }, [currentThresholds]);
 
   // Memoize chart props to prevent unnecessary re-renders
   const chartProps = useMemo(() => ({
@@ -311,6 +310,7 @@ const Index = () => {
             icon={<Thermometer className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_temperature ?? latestData?.temperature ?? 0, 'air_temperature')}
             sensorType="air_temperature"
+            currentThresholds={currentThresholds}
             trend={{ value: 4, type: 'up' }}
           />
         </div>
@@ -322,6 +322,7 @@ const Index = () => {
             icon={<CloudDrizzle className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_humidity ?? latestData?.humidity ?? 0, 'air_humidity')}
             sensorType="air_humidity"
+            currentThresholds={currentThresholds}
             trend={{ value: 3, type: 'down' }}
           />
         </div>
@@ -333,6 +334,7 @@ const Index = () => {
             icon={<AlertTriangle className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_smoke_mq2 ?? latestData?.smoke_mq2 ?? 0, 'smoke_mq2')}
             sensorType="smoke_mq2"
+            currentThresholds={currentThresholds}
             trend={{ value: 1, type: 'up' }}
           />
         </div>
@@ -344,6 +346,7 @@ const Index = () => {
             icon={<FlaskConical className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_alcohol_mq3 ?? latestData?.alcohol_mq3 ?? 0, 'alcohol_mq3')}
             sensorType="alcohol_mq3"
+            currentThresholds={currentThresholds}
             trend={{ value: 2, type: 'down' }}
           />
         </div>
@@ -355,6 +358,7 @@ const Index = () => {
             icon={<Wind className="h-5 w-5" />}
             status={getStatus((latestData as any)?.air_air_quality_mq135 ?? latestData?.air_quality_mq135 ?? 0, 'air_quality_mq135')}
             sensorType="air_quality_mq135"
+            currentThresholds={currentThresholds}
             trend={{ value: 3, type: 'down' }}
           />
         </div>

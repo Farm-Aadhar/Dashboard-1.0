@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Thermometer, Droplets, Wind, Flame, TreePine, Activity } from "lucide-react";
+import { Thermometer, Droplets, Wind, Flame, TreePine, Activity, Settings, Zap } from "lucide-react";
+import { thresholdService, ThresholdPreset, CalibrationResult } from "@/api/threshold-service";
 
 // Threshold types
 export interface SensorThreshold {
@@ -103,29 +105,110 @@ export interface ThresholdSettingsProps {
 export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps) {
   const [thresholds, setThresholds] = useState<Record<string, SensorThreshold>>(DEFAULT_THRESHOLDS);
   const [hasChanges, setHasChanges] = useState(false);
+  const [presets, setPresets] = useState<ThresholdPreset[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibrationResults, setCalibrationResults] = useState<CalibrationResult[]>([]);
   const { toast } = useToast();
 
-  // Load saved thresholds on component mount
+  // Load saved thresholds and presets on component mount
   useEffect(() => {
+    loadThresholds();
+    loadPresets();
+  }, []);
+
+  const loadThresholds = async () => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const merged = { ...DEFAULT_THRESHOLDS };
-        
-        // Merge saved values with defaults to ensure all fields exist
-        Object.keys(merged).forEach(key => {
-          if (parsed[key]) {
-            merged[key] = { ...merged[key], ...parsed[key] };
-          }
-        });
-        
-        setThresholds(merged);
-      }
+      const currentThresholds = await thresholdService.getCurrentThresholds();
+      setThresholds(currentThresholds);
     } catch (error) {
       console.error("Error loading thresholds:", error);
+      // Fallback to localStorage
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const merged = { ...DEFAULT_THRESHOLDS };
+          
+          Object.keys(merged).forEach(key => {
+            if (parsed[key]) {
+              merged[key] = { ...merged[key], ...parsed[key] };
+            }
+          });
+          
+          setThresholds(merged);
+        }
+      } catch (localError) {
+        console.error("Error loading from localStorage:", localError);
+      }
     }
-  }, []);
+  };
+
+  const loadPresets = async () => {
+    try {
+      const availablePresets = await thresholdService.getThresholdPresets();
+      setPresets(availablePresets);
+    } catch (error) {
+      console.error("Error loading presets:", error);
+    }
+  };
+
+  const applyPreset = async (presetId: string) => {
+    if (!presetId) return;
+    
+    try {
+      await thresholdService.applyPreset(presetId);
+      const newThresholds = await thresholdService.getCurrentThresholds();
+      setThresholds(newThresholds);
+      setHasChanges(false);
+      
+      const presetName = presets.find(p => p.id === presetId)?.name || presetId;
+      toast({
+        title: "Preset Applied",
+        description: `${presetName} threshold preset has been applied successfully.`,
+        variant: "default"
+      });
+      
+      onThresholdsChange?.(newThresholds);
+    } catch (error) {
+      console.error("Error applying preset:", error);
+      toast({
+        title: "Error Applying Preset",
+        description: "Failed to apply the selected preset. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const calibrateThresholds = async () => {
+    setIsCalibrating(true);
+    try {
+      const results = await thresholdService.calibrateThresholds(3, 5);
+      setCalibrationResults(results);
+      
+      // Load the updated thresholds
+      const newThresholds = await thresholdService.getCurrentThresholds();
+      setThresholds(newThresholds);
+      setHasChanges(false);
+      
+      toast({
+        title: "Calibration Complete",
+        description: `Thresholds calibrated based on ${results.length} sensor readings with 3-5% tolerance.`,
+        variant: "default"
+      });
+      
+      onThresholdsChange?.(newThresholds);
+    } catch (error) {
+      console.error("Error calibrating thresholds:", error);
+      toast({
+        title: "Calibration Failed",
+        description: error instanceof Error ? error.message : "Failed to calibrate thresholds.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCalibrating(false);
+    }
+  };
 
   const updateThreshold = (sensorKey: string, type: 'low' | 'high', value: number) => {
     setThresholds(prev => {
@@ -149,9 +232,9 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
     });
   };
 
-  const saveThresholds = () => {
+  const saveThresholds = async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(thresholds));
+      await thresholdService.updateThresholds(thresholds);
       setHasChanges(false);
       onThresholdsChange?.(thresholds);
       
@@ -161,11 +244,25 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
         variant: "default"
       });
     } catch (error) {
-      toast({
-        title: "Error Saving Settings",
-        description: "Failed to save threshold settings. Please try again.",
-        variant: "destructive"
-      });
+      console.error("Error saving thresholds:", error);
+      // Fallback to localStorage
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(thresholds));
+        setHasChanges(false);
+        onThresholdsChange?.(thresholds);
+        
+        toast({
+          title: "Settings Saved",
+          description: "Sensor threshold values have been updated successfully.",
+          variant: "default"
+        });
+      } catch (localError) {
+        toast({
+          title: "Error Saving Settings",
+          description: "Failed to save threshold settings. Please try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -282,6 +379,82 @@ export function ThresholdSettings({ onThresholdsChange }: ThresholdSettingsProps
           Set warning and critical thresholds for all sensors. Values outside these ranges will trigger alerts in the dashboard, AI analysis, and reports.
         </p>
       </div>
+
+      {/* Preset Selection and Calibration */}
+      <Card className="p-4 bg-card border-border">
+        <div className="flex items-center gap-2 mb-4">
+          <Settings className="h-4 w-4" />
+          <h3 className="font-medium text-foreground">Quick Setup</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Preset Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Apply Preset</Label>
+            <Select value={selectedPreset} onValueChange={(value) => {
+              setSelectedPreset(value);
+              applyPreset(value);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a threshold preset..." />
+              </SelectTrigger>
+              <SelectContent>
+                {presets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id!}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{preset.name}</span>
+                      {preset.description && (
+                        <span className="text-xs text-muted-foreground">{preset.description}</span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Pre-configured thresholds for different farming environments
+            </p>
+          </div>
+
+          {/* Calibration */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Auto-Calibrate</Label>
+            <Button 
+              onClick={calibrateThresholds}
+              disabled={isCalibrating}
+              variant="outline"
+              className="w-full"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              {isCalibrating ? "Calibrating..." : "Calibrate from Current"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Set thresholds based on latest sensor readings (±3-5% tolerance)
+            </p>
+          </div>
+        </div>
+
+        {/* Calibration Results */}
+        {calibrationResults.length > 0 && (
+          <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <p className="text-sm text-green-800 dark:text-green-200 font-medium mb-2">
+              ✅ Calibration Results:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              {calibrationResults.map((result) => (
+                <div key={result.sensor_type} className="flex justify-between">
+                  <span className="text-green-700 dark:text-green-300">
+                    {result.sensor_type.replace('_', ' ')}:
+                  </span>
+                  <span className="text-green-600 dark:text-green-400 font-mono">
+                    {result.calculated_low.toFixed(1)} - {result.calculated_high.toFixed(1)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
 
       <div className="space-y-6">
         <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded-lg">

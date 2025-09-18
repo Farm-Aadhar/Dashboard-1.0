@@ -17,7 +17,7 @@ export type SensorType =
   | 'alcohol_mq3'
   | 'smoke_mq2';
 
-export type PresetCategory = 'greenhouse' | 'outdoor' | 'indoor' | 'custom';
+export type PresetCategory = 'crop' | 'system_default' | 'custom';
 
 export type ChangeType = 'manual' | 'preset_change' | 'auto_calibration' | 'system_update';
 
@@ -413,6 +413,72 @@ export interface Database {
           {
             foreignKeyName: "threshold_change_log_changed_by_fkey";
             columns: ["changed_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      current_thresholds: {
+        Row: {
+          id: string;
+          sensor_type: SensorType;
+          low_value: number;
+          high_value: number;
+          unit: string;
+          label: string;
+          icon: string | null;
+          min_value: number | null;
+          max_value: number | null;
+          step_value: number | null;
+          source_preset_id: string | null;
+          source_type: ChangeType;
+          last_updated: string | null;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          sensor_type: SensorType;
+          low_value: number;
+          high_value: number;
+          unit: string;
+          label: string;
+          icon?: string | null;
+          min_value?: number | null;
+          max_value?: number | null;
+          step_value?: number | null;
+          source_preset_id?: string | null;
+          source_type?: ChangeType;
+          last_updated?: string | null;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          sensor_type?: SensorType;
+          low_value?: number;
+          high_value?: number;
+          unit?: string;
+          label?: string;
+          icon?: string | null;
+          min_value?: number | null;
+          max_value?: number | null;
+          step_value?: number | null;
+          source_preset_id?: string | null;
+          source_type?: ChangeType;
+          last_updated?: string | null;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "current_thresholds_source_preset_id_fkey";
+            columns: ["source_preset_id"];
+            isOneToOne: false;
+            referencedRelation: "threshold_presets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "current_thresholds_updated_by_fkey";
+            columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "users";
             referencedColumns: ["id"];
